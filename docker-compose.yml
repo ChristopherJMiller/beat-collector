@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: beat-collector-postgres
+    environment:
+      POSTGRES_DB: beat_collector
+      POSTGRES_USER: beat_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beat_user -d beat_collector"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - beat-collector-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: beat-collector-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - beat-collector-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: beat-collector-app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://beat_user:${DB_PASSWORD:-changeme}@postgres:5432/beat_collector
+      REDIS_URL: redis://redis:6379
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 3000
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://localhost:3000/auth/callback}
+      RUST_LOG: ${RUST_LOG:-beat_collector=info,tower_http=info}
+    volumes:
+      # Mount your local music folder (read-only recommended)
+      - ${MUSIC_FOLDER:-./music}:/music:ro
+      # Mount cover art storage
+      - cover_art:/app/cover_art
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - beat-collector-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  cover_art:
+    driver: local
+
+networks:
+  beat-collector-network:
+    driver: bridge

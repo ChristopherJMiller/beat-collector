@@ -1,0 +1,84 @@
+[workspace]
+members = [".", "migration"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Beat Collector Team"]
+license = "MIT"
+
+[package]
+name = "beat-collector"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace", "compression-gzip"] }
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
+migration = { path = "migration" }
+
+# Redis
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "json"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "gzip"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Rate limiting
+governor = "0.6"
+nonzero_ext = "0.3"
+
+# Scheduling
+tokio-cron-scheduler = "0.10"
+
+# File watching
+notify = "6"
+notify-debouncer-full = "0.3"
+
+# Music metadata
+id3 = "1.13"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Utilities
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+
+# Crypto
+sha2 = "0.10"
+base64 = "0.21"
+rand = "0.8"
+
+# MusicBrainz client
+musicbrainz_rs = { version = "0.5", features = ["async"] }
+
+# Config
+config = "0.14"
+
+[features]
+default = []
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

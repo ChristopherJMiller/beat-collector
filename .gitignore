@@ -1,0 +1,43 @@
+# Rust
+/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Cover art storage
+/cover_art/
+
+# Music files (if mounted locally)
+/music/
+
+# Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.next/
+/frontend/build/
+
+# Docker
+docker-compose.override.yml
