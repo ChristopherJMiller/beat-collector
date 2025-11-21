@@ -8,7 +8,6 @@ use sea_orm::{Database, DatabaseConnection};
 use std::net::SocketAddr;
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::ServeDir,
     trace::TraceLayer,
     compression::CompressionLayer,
 };
@@ -21,6 +20,7 @@ mod handlers;
 mod services;
 mod state;
 mod tasks;
+mod templates;
 
 use config::Config;
 use state::AppState;
@@ -84,11 +84,11 @@ fn create_router(state: AppState) -> Router {
         // Health check
         .route("/health", get(handlers::health::health_check))
 
-        // API routes
+        // API routes (JSON)
         .nest("/api", handlers::api_routes())
 
-        // Serve static files (React frontend)
-        .nest_service("/", ServeDir::new("static"))
+        // HTML routes (MASH stack - Maud + HTMX)
+        .merge(handlers::html_routes())
 
         // Middleware
         .layer(

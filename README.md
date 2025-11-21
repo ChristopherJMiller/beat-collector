@@ -14,12 +14,26 @@ A self-hosted music library management system to help you transition from Spotif
 
 ## Architecture
 
-Built with:
-- **Backend**: Rust + Axum web framework
-- **Database**: PostgreSQL with SeaORM
-- **Cache**: Redis for API response caching
-- **Frontend**: React + TailwindCSS (coming soon)
-- **Task Queue**: tokio-cron-scheduler for background jobs
+Built with the **MASH stack** - a full-stack Rust web development approach:
+- **M**aud - Type-safe HTML templating (templates as Rust functions)
+- **A**xum - Modern async web framework
+- **S**eaORM - SQL toolkit with migrations
+- **H**TMX - Hypermedia-driven interactivity
+- **+** TailwindCSS - Utility-first CSS
+
+**Additional infrastructure:**
+- PostgreSQL 15+ for data persistence
+- Redis 7+ for caching API responses
+- tokio-cron-scheduler for background jobs
+
+**Why MASH?**
+- ✅ Full-stack type safety (database → templates)
+- ✅ Single Rust binary deployment
+- ✅ No Node.js or JavaScript build process
+- ✅ Server-side rendering with HTMX for interactivity
+- ✅ Compile-time template checking
+
+See [README_MASH.md](./README_MASH.md) for detailed architecture notes.
 
 ## Prerequisites
 
@@ -28,7 +42,6 @@ Built with:
   - Rust 1.75+
   - PostgreSQL 15+
   - Redis 7+
-  - Node.js 20+ (for frontend)
 
 ## Quick Start with Docker
 
@@ -286,12 +299,19 @@ beat-collector/
 │   │   ├── lidarr.rs        # Lidarr API client
 │   │   └── cache.rs         # Redis caching
 │   ├── handlers/            # HTTP request handlers
+│   │   ├── html.rs          # HTML-returning handlers (MASH)
+│   │   ├── albums.rs        # JSON API handlers
+│   │   └── ...
+│   ├── templates/           # Maud templates
+│   │   ├── layout.rs        # Base layout, nav, footer
+│   │   ├── components.rs    # Reusable UI components
+│   │   └── pages.rs         # Full page templates
 │   └── tasks/               # Background job workers
 ├── migration/               # Database migrations
-├── frontend/                # React frontend (coming soon)
 ├── Dockerfile
 ├── docker-compose.yml
-└── DESIGN.md               # Detailed design document
+├── DESIGN.md               # Detailed design document
+└── README_MASH.md          # MASH stack architecture guide
 ```
 
 ### Running Tests

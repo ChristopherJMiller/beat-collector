@@ -22,6 +22,9 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors", "trace", "compression-gzip"] }
 tokio = { version = "1", features = ["full"] }
 
+# Templating
+maud = { version = "0.26", features = ["axum"] }
+
 # Database
 sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
 migration = { path = "migration" }
@@ -62,6 +65,7 @@ thiserror = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
+urlencoding = "2.1"
 
 # Crypto
 sha2 = "0.10"

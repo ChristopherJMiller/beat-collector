@@ -24,14 +24,6 @@ COPY --from=cacher /app/target target
 COPY --from=cacher /usr/local/cargo /usr/local/cargo
 RUN cargo build --release --bin beat-collector
 
-# Frontend build stage
-FROM node:20-alpine as frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ .
-RUN npm run build
-
 # Runtime stage
 FROM debian:bookworm-slim
 WORKDIR /app
@@ -44,9 +36,6 @@ RUN apt-get update && apt-get install -y \
 
 # Copy binary from builder
 COPY --from=backend-builder /app/target/release/beat-collector /app/beat-collector
-
-# Copy frontend static files
-COPY --from=frontend-builder /app/frontend/dist /app/static
 
 # Create directories for cover art and music
 RUN mkdir -p /app/cover_art /music

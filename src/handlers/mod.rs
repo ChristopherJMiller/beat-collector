@@ -3,6 +3,7 @@ pub mod albums;
 pub mod auth;
 pub mod jobs;
 pub mod settings;
+pub mod html;
 
 use axum::{
     routing::{get, post, patch, put},
@@ -11,6 +12,21 @@ use axum::{
 
 use crate::state::AppState;
 
+/// HTML page routes (MASH stack)
+pub fn html_routes() -> Router<AppState> {
+    Router::new()
+        // Main pages
+        .route("/", get(html::index))
+        .route("/settings", get(html::settings))
+        .route("/jobs", get(html::jobs))
+        .route("/stats", get(html::stats))
+
+        // HTMX partials
+        .route("/albums", get(html::albums_grid))
+        .route("/albums/:id", get(html::album_detail))
+}
+
+/// JSON API routes (for programmatic access)
 pub fn api_routes() -> Router<AppState> {
     Router::new()
         // Auth endpoints
