@@ -9,56 +9,18 @@ pub fn base_layout(title: &str, content: Markup) -> Markup {
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { (title) " - Beat Collector" }
 
-                // TailwindCSS via CDN (for development; use standalone CLI for production)
-                script src="https://cdn.tailwindcss.com" {}
+                // Compiled TailwindCSS
+                link rel="stylesheet" href="/static/css/output.css";
 
-                // HTMX
+                // HTMX for interactivity
                 script src="https://unpkg.com/htmx.org@1.9.10" {}
 
-                // Custom TailwindCSS config
-                script {
-                    r#"
-                    tailwind.config = {
-                        theme: {
-                            extend: {
-                                colors: {
-                                    primary: '#1db954',
-                                    owned: '#22c55e',
-                                    notOwned: '#6b7280',
-                                    downloading: '#3b82f6',
-                                    warning: '#eab308'
-                                }
-                            }
-                        }
-                    }
-                    "#
-                }
-
-                // Custom styles
+                // Additional custom styles
                 style {
                     r#"
-                    .album-card {
-                        transition: all 0.2s ease-in-out;
-                    }
                     .album-card:hover {
                         transform: translateY(-4px);
                         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-                    }
-                    .album-card.not-owned {
-                        opacity: 0.5;
-                        filter: grayscale(100%);
-                    }
-                    .album-card.owned {
-                        opacity: 1;
-                        filter: grayscale(0%);
-                    }
-                    .album-card.downloading {
-                        border: 2px solid #3b82f6;
-                        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                    }
-                    @keyframes pulse {
-                        0%, 100% { opacity: 1; }
-                        50% { opacity: .7; }
                     }
                     "#
                 }

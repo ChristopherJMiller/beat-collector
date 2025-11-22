@@ -97,7 +97,12 @@ pub async fn trigger_spotify_sync(
 
     new_job.insert(&state.db).await?;
 
-    // TODO: Trigger actual background job processing
+    // Submit job to the queue
+    state.job_queue.submit(crate::jobs::queue::JobMessage {
+        job_id,
+        job_type: job::JobType::SpotifySync,
+        entity_id: None,
+    })?;
 
     Ok(Json(JobCreatedResponse {
         job_id,
@@ -120,7 +125,12 @@ pub async fn trigger_musicbrainz_match(
 
     new_job.insert(&state.db).await?;
 
-    // TODO: Trigger actual background job processing
+    // Submit job to the queue
+    state.job_queue.submit(crate::jobs::queue::JobMessage {
+        job_id,
+        job_type: job::JobType::MusicbrainzMatch,
+        entity_id: None,
+    })?;
 
     Ok(Json(JobCreatedResponse {
         job_id,

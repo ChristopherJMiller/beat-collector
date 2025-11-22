@@ -10,6 +10,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::TraceLayer,
     compression::CompressionLayer,
+    services::ServeDir,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -17,6 +18,7 @@ mod config;
 mod db;
 mod error;
 mod handlers;
+mod jobs;
 mod services;
 mod state;
 mod tasks;
@@ -58,8 +60,19 @@ async fn main() -> Result<()> {
     let redis_conn = redis_client.get_connection_manager().await?;
     tracing::info!("Connected to Redis");
 
+    // Initialize job queue and executor
+    let (job_queue, job_receiver) = jobs::JobQueue::new();
+    tracing::info!("Job queue initialized");
+
     // Initialize application state
-    let state = AppState::new(db, redis_conn, config.clone());
+    let state = AppState::new(db, redis_conn, config.clone(), job_queue);
+
+    // Start job executor
+    let executor = jobs::JobExecutor::new(state.clone(), job_receiver);
+    tokio::spawn(async move {
+        executor.start().await;
+    });
+    tracing::info!("Job executor started");
 
     // Start background tasks
     let task_scheduler = tasks::start_scheduler(state.clone()).await?;
@@ -89,6 +102,9 @@ fn create_router(state: AppState) -> Router {
 
         // HTML routes (MASH stack - Maud + HTMX)
         .merge(handlers::html_routes())
+
+        // Static file serving for cover art and assets
+        .nest_service("/static", ServeDir::new("static"))
 
         // Middleware
         .layer(

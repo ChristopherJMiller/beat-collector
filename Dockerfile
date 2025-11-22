@@ -1,3 +1,13 @@
+# Frontend build stage - Build TailwindCSS
+FROM node:20-alpine as frontend-builder
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --production=false
+COPY tailwind.config.js ./
+COPY styles ./styles
+COPY src ./src
+RUN npm run css:prod
+
 # Build stage - Chef prepare
 FROM rust:1.75-slim as chef
 WORKDIR /app
@@ -37,8 +47,11 @@ RUN apt-get update && apt-get install -y \
 # Copy binary from builder
 COPY --from=backend-builder /app/target/release/beat-collector /app/beat-collector
 
-# Create directories for cover art and music
-RUN mkdir -p /app/cover_art /music
+# Copy static assets (CSS and directory structure)
+COPY --from=frontend-builder /app/static /app/static
+
+# Create directories for covers and music
+RUN mkdir -p /app/static/covers /music
 
 # Expose port
 EXPOSE 3000

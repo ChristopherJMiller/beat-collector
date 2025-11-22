@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for Beat Collector */
+@layer components {
+  .album-card {
+    @apply transition-transform duration-200 hover:scale-105;
+  }
+
+  .album-card-owned {
+    @apply opacity-100;
+  }
+
+  .album-card-not-owned {
+    @apply opacity-60 grayscale;
+  }
+
+  .album-card-downloading {
+    @apply opacity-80 animate-pulse;
+  }
+}

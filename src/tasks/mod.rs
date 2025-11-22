@@ -6,6 +6,8 @@ use crate::state::AppState;
 pub mod spotify_sync;
 pub mod musicbrainz_match;
 pub mod filesystem_scan;
+pub mod filesystem_watcher;
+pub mod cover_art;
 
 pub async fn start_scheduler(state: AppState) -> Result<JobScheduler> {
     let scheduler = JobScheduler::new().await?;
@@ -19,6 +21,9 @@ pub async fn start_scheduler(state: AppState) -> Result<JobScheduler> {
     //     })
     // })?;
     // scheduler.add(spotify_sync_job).await?;
+
+    // Initialize filesystem watcher if configured
+    filesystem_watcher::init_watcher_if_configured(state.clone()).await?;
 
     scheduler.start().await?;
 

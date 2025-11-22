@@ -55,7 +55,7 @@ services:
       # Mount your local music folder (read-only recommended)
       - ${MUSIC_FOLDER:-./music}:/music:ro
       # Mount cover art storage
-      - cover_art:/app/cover_art
+      - cover_art:/app/static/covers
     depends_on:
       postgres:
         condition: service_healthy

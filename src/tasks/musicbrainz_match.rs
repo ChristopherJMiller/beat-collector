@@ -36,8 +36,11 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
             {
                 Ok(matches) => {
                     if let Some(best_match) = matches.first() {
+                        let album_id = album_model.id;
+                        let mb_id = best_match.id;
+
                         let mut active: album::ActiveModel = album_model.into();
-                        active.musicbrainz_release_group_id = Set(Some(best_match.id));
+                        active.musicbrainz_release_group_id = Set(Some(mb_id));
                         active.match_score = Set(Some(best_match.score));
                         active.match_status = Set(if best_match.score >= 90 {
                             album::MatchStatus::Matched
@@ -54,6 +57,29 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
                             best_match.score,
                             best_match.title
                         );
+
+                        // Download cover art after successful match
+                        let covers_dir = std::path::PathBuf::from("static/covers");
+                        match super::cover_art::download_cover_art(&state, album_id, mb_id, &covers_dir).await {
+                            Ok(cover_url) => {
+                                // Update album with local cover art URL
+                                let album_for_cover = Album::find_by_id(album_id)
+                                    .one(&state.db)
+                                    .await?;
+
+                                if let Some(alb) = album_for_cover {
+                                    let mut active_cover: album::ActiveModel = alb.into();
+                                    active_cover.cover_art_url = Set(Some(cover_url));
+                                    active_cover.updated_at = Set(chrono::Utc::now().into());
+                                    active_cover.update(&state.db).await?;
+                                    tracing::debug!("Cover art downloaded and saved");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to download cover art: {}", e);
+                                // Continue even if cover art fails
+                            }
+                        }
                     } else {
                         // No match found
                         let mut active: album::ActiveModel = album_model.into();

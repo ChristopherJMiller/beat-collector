@@ -39,5 +39,15 @@ Thumbs.db
 /frontend/.next/
 /frontend/build/
 
+# Node modules and CSS build artifacts (MASH stack)
+/node_modules/
+/static/css/output.css
+/static/covers/*.jpg
+/static/covers/*.png
+
+# Keep directories
+!/static/css/.gitkeep
+!/static/covers/.gitkeep
+
 # Docker
 docker-compose.override.yml

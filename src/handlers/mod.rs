@@ -4,6 +4,7 @@ pub mod auth;
 pub mod jobs;
 pub mod settings;
 pub mod html;
+pub mod lidarr;
 
 use axum::{
     routing::{get, post, patch, put},
@@ -50,6 +51,9 @@ pub fn api_routes() -> Router<AppState> {
         .route("/settings", get(settings::get_settings))
         .route("/settings", put(settings::update_settings))
         .route("/settings/test-lidarr", post(settings::test_lidarr_connection))
+
+        // Lidarr webhook
+        .route("/webhooks/lidarr", post(lidarr::webhook))
 
         // Statistics
         .route("/stats", get(albums::get_stats))

@@ -246,12 +246,74 @@ pub async fn search_lidarr(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
-    // This would trigger a Lidarr search for this album
-    // For now, return a placeholder
-    Ok(Json(serde_json::json!({
-        "message": "Lidarr search triggered",
-        "album_id": id
-    })))
+    use crate::services::LidarrService;
+
+    // Get user settings for Lidarr configuration
+    let settings = crate::db::entities::UserSettings::find()
+        .one(&state.db)
+        .await?
+        .ok_or_else(|| AppError::Internal("User settings not found".to_string()))?;
+
+    let lidarr_url = settings
+        .lidarr_url
+        .ok_or_else(|| AppError::Internal("Lidarr URL not configured".to_string()))?;
+
+    let lidarr_api_key = settings
+        .lidarr_api_key
+        .ok_or_else(|| AppError::Internal("Lidarr API key not configured".to_string()))?;
+
+    // Get the album from database
+    let album = Album::find_by_id(id)
+        .one(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Album not found".to_string()))?;
+
+    // Get MusicBrainz ID
+    let mb_id = album
+        .musicbrainz_release_group_id
+        .ok_or_else(|| {
+            AppError::Internal(
+                "Album not matched to MusicBrainz. Please match it first.".to_string(),
+            )
+        })?;
+
+    let lidarr_service = LidarrService::new();
+
+    // Lookup album in Lidarr by MusicBrainz ID
+    let lidarr_album = lidarr_service
+        .lookup_album(&lidarr_url, &lidarr_api_key, &mb_id.to_string())
+        .await?;
+
+    match lidarr_album {
+        Some(lidarr_alb) => {
+            // Album exists in Lidarr, trigger search
+            let search_result = lidarr_service
+                .search_album(&lidarr_url, &lidarr_api_key, lidarr_alb.id)
+                .await?;
+
+            // Update album status to Downloading
+            let mut active: album::ActiveModel = album.into();
+            active.ownership_status = Set(album::OwnershipStatus::Downloading);
+            active.updated_at = Set(chrono::Utc::now().into());
+            active.update(&state.db).await?;
+
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "Lidarr search triggered",
+                "command_id": search_result.id,
+                "album_id": id
+            })))
+        }
+        None => {
+            // Album doesn't exist in Lidarr yet
+            // TODO: Implement adding album to Lidarr first
+            Ok(Json(serde_json::json!({
+                "success": false,
+                "message": "Album not found in Lidarr. Please add it to Lidarr first.",
+                "album_id": id
+            })))
+        }
+    }
 }
 
 pub async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>> {
