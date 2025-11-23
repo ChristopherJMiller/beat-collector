@@ -13,7 +13,6 @@ pub struct Model {
     pub release_date: Option<Date>,
     pub total_tracks: Option<i32>,
     pub cover_art_url: Option<String>,
-    #[sea_orm(column_type = "Array(ColumnType::Text)")]
     pub genres: Option<Vec<String>>,
     pub ownership_status: OwnershipStatus,
     pub acquisition_source: Option<AcquisitionSource>,
@@ -26,7 +25,7 @@ pub struct Model {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(Some(20))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum OwnershipStatus {
     #[sea_orm(string_value = "not_owned")]
     NotOwned,
@@ -37,7 +36,7 @@ pub enum OwnershipStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(Some(20))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum AcquisitionSource {
     #[sea_orm(string_value = "bandcamp")]
     Bandcamp,
@@ -50,7 +49,7 @@ pub enum AcquisitionSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(Some(20))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum MatchStatus {
     #[sea_orm(string_value = "pending")]
     Pending,

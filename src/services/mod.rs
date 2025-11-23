@@ -5,5 +5,5 @@ pub mod cache;
 
 pub use spotify::SpotifyService;
 pub use musicbrainz::MusicBrainzService;
-pub use lidarr::LidarrService;
+pub use lidarr::{LidarrService, LidarrWebhook, LidarrArtist, LidarrAlbum, TrackFile};
 pub use cache::CacheService;

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use notify_debouncer_full::{new_debouncer, notify::*, DebounceEventResult};
+use sea_orm::EntityTrait;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::mpsc;

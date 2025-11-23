@@ -27,15 +27,15 @@ impl JobQueue {
 
     /// Submit a job to the queue
     pub fn submit(&self, message: JobMessage) -> Result<()> {
-        self.sender
-            .send(message)
-            .map_err(|e| anyhow::anyhow!("Failed to submit job: {}", e))?;
-
         tracing::info!(
             "Job {} ({:?}) submitted to queue",
             message.job_id,
             message.job_type
         );
+
+        self.sender
+            .send(message)
+            .map_err(|e| anyhow::anyhow!("Failed to submit job: {}", e))?;
 
         Ok(())
     }

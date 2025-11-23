@@ -13,7 +13,7 @@ fi
 
 # Start infrastructure services
 echo "Starting PostgreSQL and Redis..."
-docker-compose up -d postgres redis
+docker compose up -d postgres redis
 
 # Wait for services to be healthy
 echo "Waiting for services to be ready..."

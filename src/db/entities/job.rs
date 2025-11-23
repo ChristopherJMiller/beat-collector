@@ -19,7 +19,7 @@ pub struct Model {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(Some(50))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(50))")]
 pub enum JobType {
     #[sea_orm(string_value = "spotify_sync")]
     SpotifySync,
@@ -34,7 +34,7 @@ pub enum JobType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "String(Some(20))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum JobStatus {
     #[sea_orm(string_value = "pending")]
     Pending,

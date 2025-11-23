@@ -4,6 +4,7 @@ use axum::{
     Router,
 };
 use dotenvy::dotenv;
+use migration::MigratorTrait;
 use sea_orm::{Database, DatabaseConnection};
 use std::net::SocketAddr;
 use tower_http::{
@@ -83,10 +84,10 @@ async fn main() -> Result<()> {
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Server listening on {}", addr);
 
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    axum::serve(listener, app)
         .await?;
 
     Ok(())

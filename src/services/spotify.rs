@@ -1,7 +1,7 @@
 use anyhow::Context;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Duration, Utc};
-use governor::{Quota, RateLimiter};
+use governor::{Quota, RateLimiter, clock::DefaultClock, state::InMemoryState, state::direct::NotKeyed};
 use nonzero_ext::nonzero;
 use rand::Rng;
 use reqwest::Client;
@@ -20,7 +20,7 @@ pub struct SpotifyService {
     client: Client,
     client_id: String,
     redirect_uri: String,
-    rate_limiter: Arc<RateLimiter<governor::state::direct::NotKeyed, governor::clock::DefaultClock>>,
+    rate_limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
