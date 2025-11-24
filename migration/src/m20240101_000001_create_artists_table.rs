@@ -13,10 +13,10 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Artists::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
+                            .auto_increment()
+                            .primary_key(),
                     )
                     .col(
                         ColumnDef::new(Artists::Name)
@@ -30,19 +30,17 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Artists::MusicbrainzId)
-                            .uuid(),
+                            .string_len(100),
                     )
                     .col(
                         ColumnDef::new(Artists::CreatedAt)
                             .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT NOW()"),
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(Artists::UpdatedAt)
                             .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT NOW()"),
+                            .not_null(),
                     )
                     .to_owned(),
             )

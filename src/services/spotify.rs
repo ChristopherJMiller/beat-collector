@@ -27,6 +27,7 @@ pub struct SpotifyService {
 pub struct AuthorizationUrl {
     pub url: String,
     pub code_verifier: String,
+    pub state: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -96,6 +97,9 @@ impl SpotifyService {
         // Generate code challenge
         let code_challenge = self.generate_code_challenge(&code_verifier);
 
+        // Generate random state for CSRF protection and verifier lookup
+        let state = uuid::Uuid::new_v4().to_string();
+
         // Build authorization URL
         let scopes = vec![
             "user-library-read",
@@ -104,17 +108,19 @@ impl SpotifyService {
         ];
 
         let url = format!(
-            "{}?client_id={}&response_type=code&redirect_uri={}&code_challenge_method=S256&code_challenge={}&scope={}",
+            "{}?client_id={}&response_type=code&redirect_uri={}&code_challenge_method=S256&code_challenge={}&scope={}&state={}",
             SPOTIFY_AUTH_URL,
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
             code_challenge,
-            urlencoding::encode(&scopes.join(" "))
+            urlencoding::encode(&scopes.join(" ")),
+            state
         );
 
         Ok(AuthorizationUrl {
             url,
             code_verifier,
+            state,
         })
     }
 

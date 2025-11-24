@@ -13,10 +13,10 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(UserSettings::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
+                            .auto_increment()
                             .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
                     )
                     .col(
                         ColumnDef::new(UserSettings::SpotifyAccessToken)
@@ -56,13 +56,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(UserSettings::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .col(
                         ColumnDef::new(UserSettings::UpdatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .to_owned(),
             )

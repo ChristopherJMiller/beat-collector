@@ -1,15 +1,14 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
-use crate::db::entities::job::JobType;
+use crate::db::JobType;
 
 /// Message sent to the job queue
 #[derive(Debug, Clone)]
 pub struct JobMessage {
-    pub job_id: Uuid,
+    pub job_id: i32,
     pub job_type: JobType,
-    pub entity_id: Option<Uuid>,
+    pub entity_id: Option<i32>,
 }
 
 /// Job queue for async background task processing

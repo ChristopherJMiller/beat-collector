@@ -7,10 +7,12 @@ use sea_orm::{
     QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
-    db::entities::{album, artist, Album, Artist},
+    db::{
+        entities::{albums, artists, user_settings},
+        enums::{AcquisitionSource, OwnershipStatus},
+    },
     error::{AppError, Result},
     state::AppState,
 };
@@ -19,7 +21,7 @@ use crate::{
 pub struct ListAlbumsQuery {
     pub ownership_status: Option<String>,
     pub match_status: Option<String>,
-    pub artist_id: Option<Uuid>,
+    pub artist_id: Option<i32>,
     pub search: Option<String>,
     #[serde(default = "default_page")]
     pub page: u64,
@@ -37,7 +39,7 @@ fn default_page_size() -> u64 {
 
 #[derive(Serialize)]
 pub struct AlbumResponse {
-    pub id: Uuid,
+    pub id: i32,
     pub title: String,
     pub artist: ArtistResponse,
     pub cover_art_url: Option<String>,
@@ -49,7 +51,7 @@ pub struct AlbumResponse {
 
 #[derive(Serialize)]
 pub struct ArtistResponse {
-    pub id: Uuid,
+    pub id: i32,
     pub name: String,
 }
 
@@ -92,26 +94,26 @@ pub async fn list_albums(
     let page = query.page.max(1);
     let page_size = query.page_size.min(200).max(1);
 
-    let mut select = Album::find();
+    let mut select = albums::Entity::find();
 
     // Apply filters
     if let Some(status) = &query.ownership_status {
-        select = select.filter(album::Column::OwnershipStatus.eq(status));
+        select = select.filter(albums::Column::OwnershipStatus.eq(status));
     }
 
     if let Some(match_status) = &query.match_status {
-        select = select.filter(album::Column::MatchStatus.eq(match_status));
+        select = select.filter(albums::Column::MatchStatus.eq(match_status));
     }
 
     if let Some(artist_id) = query.artist_id {
-        select = select.filter(album::Column::ArtistId.eq(artist_id));
+        select = select.filter(albums::Column::ArtistId.eq(artist_id));
     }
 
     if let Some(search) = &query.search {
         select = select.filter(
-            album::Column::Title
+            albums::Column::Title
                 .contains(search)
-                .or(album::Column::Title.like(&format!("%{}%", search))),
+                .or(albums::Column::Title.like(&format!("%{}%", search))),
         );
     }
 
@@ -121,10 +123,10 @@ pub async fn list_albums(
 
     // Get paginated results
     let albums = select
-        .order_by_desc(album::Column::CreatedAt)
+        .order_by_desc(albums::Column::CreatedAt)
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .find_also_related(Artist)
+        .find_also_related(artists::Entity)
         .all(&state.db)
         .await?;
 
@@ -142,7 +144,7 @@ pub async fn list_albums(
                 release_date: album.release_date.map(|d| d.to_string()),
                 ownership_status: format!("{:?}", album.ownership_status),
                 match_score: album.match_score,
-                genres: album.genres,
+                genres: album.genres.and_then(|g| serde_json::from_str(&g).ok()),
             })
         })
         .collect();
@@ -160,10 +162,10 @@ pub async fn list_albums(
 
 pub async fn get_album(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i32>,
 ) -> Result<Json<AlbumResponse>> {
-    let album_with_artist = Album::find_by_id(id)
-        .find_also_related(Artist)
+    let album_with_artist = albums::Entity::find_by_id(id)
+        .find_also_related(artists::Entity)
         .one(&state.db)
         .await?;
 
@@ -179,7 +181,7 @@ pub async fn get_album(
             release_date: album.release_date.map(|d| d.to_string()),
             ownership_status: format!("{:?}", album.ownership_status),
             match_score: album.match_score,
-            genres: album.genres,
+            genres: album.genres.and_then(|g| serde_json::from_str(&g).ok()),
         })),
         _ => Err(AppError::NotFound("Album not found".to_string())),
     }
@@ -187,36 +189,36 @@ pub async fn get_album(
 
 pub async fn update_album(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i32>,
     Json(payload): Json<UpdateAlbumRequest>,
 ) -> Result<Json<AlbumResponse>> {
-    let album = Album::find_by_id(id)
+    let album = albums::Entity::find_by_id(id)
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Album not found".to_string()))?;
 
-    let mut active: album::ActiveModel = album.into();
+    let mut active: albums::ActiveModel = album.into();
 
     if let Some(status) = payload.ownership_status {
         // Parse the ownership status
         let ownership_status = match status.as_str() {
-            "not_owned" => album::OwnershipStatus::NotOwned,
-            "owned" => album::OwnershipStatus::Owned,
-            "downloading" => album::OwnershipStatus::Downloading,
+            "not_owned" => OwnershipStatus::NotOwned,
+            "owned" => OwnershipStatus::Owned,
+            "downloading" => OwnershipStatus::Downloading,
             _ => return Err(AppError::Internal("Invalid ownership status".to_string())),
         };
-        active.ownership_status = Set(ownership_status);
+        active.ownership_status = Set(ownership_status.as_str().to_string());
     }
 
     if let Some(source) = payload.acquisition_source {
         let acquisition_source = match source.as_str() {
-            "bandcamp" => Some(album::AcquisitionSource::Bandcamp),
-            "physical" => Some(album::AcquisitionSource::Physical),
-            "lidarr" => Some(album::AcquisitionSource::Lidarr),
-            "unknown" => Some(album::AcquisitionSource::Unknown),
+            "bandcamp" => Some(AcquisitionSource::Bandcamp),
+            "physical" => Some(AcquisitionSource::Physical),
+            "lidarr" => Some(AcquisitionSource::Lidarr),
+            "unknown" => Some(AcquisitionSource::Unknown),
             _ => None,
         };
-        active.acquisition_source = Set(acquisition_source);
+        active.acquisition_source = Set(acquisition_source.map(|s| s.as_str().to_string()));
     }
 
     if let Some(path) = payload.local_path {
@@ -232,7 +234,7 @@ pub async fn update_album(
 
 pub async fn trigger_match(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>> {
     // This would trigger a background job to match this specific album
     // For now, return a placeholder
@@ -244,12 +246,12 @@ pub async fn trigger_match(
 
 pub async fn search_lidarr(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>> {
     use crate::services::LidarrService;
 
     // Get user settings for Lidarr configuration
-    let settings = crate::db::entities::UserSettings::find()
+    let settings = user_settings::Entity::find()
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::Internal("User settings not found".to_string()))?;
@@ -263,7 +265,7 @@ pub async fn search_lidarr(
         .ok_or_else(|| AppError::Internal("Lidarr API key not configured".to_string()))?;
 
     // Get the album from database
-    let album = Album::find_by_id(id)
+    let album = albums::Entity::find_by_id(id)
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Album not found".to_string()))?;
@@ -271,6 +273,7 @@ pub async fn search_lidarr(
     // Get MusicBrainz ID
     let mb_id = album
         .musicbrainz_release_group_id
+        .clone()
         .ok_or_else(|| {
             AppError::Internal(
                 "Album not matched to MusicBrainz. Please match it first.".to_string(),
@@ -292,8 +295,8 @@ pub async fn search_lidarr(
                 .await?;
 
             // Update album status to Downloading
-            let mut active: album::ActiveModel = album.into();
-            active.ownership_status = Set(album::OwnershipStatus::Downloading);
+            let mut active: albums::ActiveModel = album.into();
+            active.ownership_status = Set(OwnershipStatus::Downloading.as_str().to_string());
             active.updated_at = Set(chrono::Utc::now().into());
             active.update(&state.db).await?;
 
@@ -317,34 +320,34 @@ pub async fn search_lidarr(
 }
 
 pub async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>> {
-    let total_albums = Album::find().count(&state.db).await?;
+    let total_albums = albums::Entity::find().count(&state.db).await?;
 
-    let owned_albums = Album::find()
-        .filter(album::Column::OwnershipStatus.eq("owned"))
+    let owned_albums = albums::Entity::find()
+        .filter(albums::Column::OwnershipStatus.eq("owned"))
         .count(&state.db)
         .await?;
 
-    let not_owned_albums = Album::find()
-        .filter(album::Column::OwnershipStatus.eq("not_owned"))
+    let not_owned_albums = albums::Entity::find()
+        .filter(albums::Column::OwnershipStatus.eq("not_owned"))
         .count(&state.db)
         .await?;
 
-    let downloading_albums = Album::find()
-        .filter(album::Column::OwnershipStatus.eq("downloading"))
+    let downloading_albums = albums::Entity::find()
+        .filter(albums::Column::OwnershipStatus.eq("downloading"))
         .count(&state.db)
         .await?;
 
-    let matched_albums = Album::find()
-        .filter(album::Column::MatchStatus.eq("matched"))
+    let matched_albums = albums::Entity::find()
+        .filter(albums::Column::MatchStatus.eq("matched"))
         .count(&state.db)
         .await?;
 
-    let unmatched_albums = Album::find()
-        .filter(album::Column::MatchStatus.eq("pending"))
+    let unmatched_albums = albums::Entity::find()
+        .filter(albums::Column::MatchStatus.eq("pending"))
         .count(&state.db)
         .await?;
 
-    let total_artists = Artist::find().count(&state.db).await?;
+    let total_artists = artists::Entity::find().count(&state.db).await?;
 
     Ok(Json(StatsResponse {
         total_albums,

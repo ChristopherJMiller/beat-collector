@@ -4,7 +4,10 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use tokio::sync::mpsc;
 
 use crate::{
-    db::entities::{job, Job},
+    db::{
+        entities::jobs,
+        enums::{JobStatus, JobType},
+    },
     jobs::queue::JobMessage,
     state::AppState,
     tasks::{filesystem_scan, musicbrainz_match, spotify_sync},
@@ -52,7 +55,7 @@ impl JobExecutor {
         if let Err(e) = Self::update_job_status(
             &state,
             job_id,
-            job::JobStatus::Running,
+            JobStatus::Running,
             None,
             Some(Utc::now().into()),
         )
@@ -63,14 +66,14 @@ impl JobExecutor {
 
         // Execute the job based on type
         let result = match message.job_type {
-            job::JobType::SpotifySync => spotify_sync::run_spotify_sync(state.clone()).await,
+            JobType::SpotifySync => spotify_sync::run_spotify_sync(state.clone()).await,
 
-            job::JobType::MusicbrainzMatch => {
+            JobType::MusicbrainzMatch => {
                 musicbrainz_match::run_musicbrainz_match(state.clone()).await
             }
 
-            job::JobType::FilesystemScan => {
-                if let Some(settings) = crate::db::entities::UserSettings::find()
+            JobType::FilesystemScan => {
+                if let Some(settings) = crate::db::entities::user_settings::Entity::find()
                     .one(&state.db)
                     .await?
                 {
@@ -88,12 +91,12 @@ impl JobExecutor {
                 }
             }
 
-            job::JobType::LidarrSearch => {
+            JobType::LidarrSearch => {
                 // TODO: Implement Lidarr search job
                 Err(anyhow::anyhow!("Lidarr search not yet implemented"))
             }
 
-            job::JobType::CoverArtFetch => {
+            JobType::CoverArtFetch => {
                 // TODO: Implement cover art fetch job
                 Err(anyhow::anyhow!("Cover art fetch not yet implemented"))
             }
@@ -106,7 +109,7 @@ impl JobExecutor {
                 Self::update_job_status(
                     &state,
                     job_id,
-                    job::JobStatus::Completed,
+                    JobStatus::Completed,
                     None,
                     None,
                 )
@@ -117,7 +120,7 @@ impl JobExecutor {
                 Self::update_job_status(
                     &state,
                     job_id,
-                    job::JobStatus::Failed,
+                    JobStatus::Failed,
                     Some(e.to_string()),
                     None,
                 )
@@ -131,28 +134,28 @@ impl JobExecutor {
     /// Update job status in database
     async fn update_job_status(
         state: &AppState,
-        job_id: Uuid,
-        status: job::JobStatus,
+        job_id: i32,
+        status: JobStatus,
         error_message: Option<String>,
         started_at: Option<chrono::DateTime<chrono::FixedOffset>>,
     ) -> Result<()> {
-        let job_record = Job::find_by_id(job_id)
+        let job_record = jobs::Entity::find_by_id(job_id)
             .one(&state.db)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Job not found: {}", job_id))?;
 
-        let mut active: job::ActiveModel = job_record.into();
-        active.status = Set(status.clone());
+        let mut active: jobs::ActiveModel = job_record.into();
+        active.status = Set(status.as_str().to_string());
 
         if let Some(msg) = error_message {
             active.error_message = Set(Some(msg));
         }
 
         if let Some(start) = started_at {
-            active.started_at = Set(Some(start));
+            active.started_at = Set(Some(start.with_timezone(&chrono::Utc).into()));
         }
 
-        if status == job::JobStatus::Completed || status == job::JobStatus::Failed {
+        if status == JobStatus::Completed || status == JobStatus::Failed {
             active.completed_at = Set(Some(Utc::now().into()));
         }
 

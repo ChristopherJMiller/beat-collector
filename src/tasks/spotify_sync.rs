@@ -1,10 +1,12 @@
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use uuid::Uuid;
 
 use crate::{
-    db::entities::{album, artist, user_settings, Album, Artist, UserSettings},
+    db::{
+        entities::{albums, artists, user_settings},
+        enums::{MatchStatus, OwnershipStatus},
+    },
     services::SpotifyService,
     state::AppState,
 };
@@ -13,7 +15,7 @@ pub async fn run_spotify_sync(state: AppState) -> Result<()> {
     tracing::info!("Starting Spotify sync job");
 
     // Get user settings with Spotify tokens
-    let settings = UserSettings::find()
+    let settings = user_settings::Entity::find()
         .one(&state.db)
         .await?
         .ok_or_else(|| anyhow::anyhow!("No user settings found"))?;
@@ -36,15 +38,14 @@ pub async fn run_spotify_sync(state: AppState) -> Result<()> {
     // Process each album
     for spotify_album in albums {
         // Get or create artist
-        let artist_model = match Artist::find()
-            .filter(artist::Column::SpotifyId.eq(&spotify_album.artists[0].id))
+        let artist_model = match artists::Entity::find()
+            .filter(artists::Column::SpotifyId.eq(&spotify_album.artists[0].id))
             .one(&state.db)
             .await?
         {
             Some(existing) => existing,
             None => {
-                let new_artist = artist::ActiveModel {
-                    id: Set(Uuid::new_v4()),
+                let new_artist = artists::ActiveModel {
                     name: Set(spotify_album.artists[0].name.clone()),
                     spotify_id: Set(Some(spotify_album.artists[0].id.clone())),
                     created_at: Set(Utc::now().into()),
@@ -56,8 +57,8 @@ pub async fn run_spotify_sync(state: AppState) -> Result<()> {
         };
 
         // Get or create album
-        let existing_album = Album::find()
-            .filter(album::Column::SpotifyId.eq(&spotify_album.id))
+        let existing_album = albums::Entity::find()
+            .filter(albums::Column::SpotifyId.eq(&spotify_album.id))
             .one(&state.db)
             .await?;
 
@@ -67,8 +68,7 @@ pub async fn run_spotify_sync(state: AppState) -> Result<()> {
                 .first()
                 .map(|img| img.url.clone());
 
-            let new_album = album::ActiveModel {
-                id: Set(Uuid::new_v4()),
+            let new_album = albums::ActiveModel {
                 title: Set(spotify_album.name.clone()),
                 artist_id: Set(artist_model.id),
                 spotify_id: Set(Some(spotify_album.id.clone())),
@@ -79,9 +79,9 @@ pub async fn run_spotify_sync(state: AppState) -> Result<()> {
                 .ok()),
                 total_tracks: Set(Some(spotify_album.total_tracks)),
                 cover_art_url: Set(cover_url),
-                genres: Set(spotify_album.genres),
-                ownership_status: Set(album::OwnershipStatus::NotOwned),
-                match_status: Set(album::MatchStatus::Pending),
+                genres: Set(spotify_album.genres.and_then(|g| serde_json::to_string(&g).ok())),
+                ownership_status: Set(OwnershipStatus::NotOwned.as_str().to_string()),
+                match_status: Set(Some(MatchStatus::Pending.as_str().to_string())),
                 created_at: Set(Utc::now().into()),
                 updated_at: Set(Utc::now().into()),
                 last_synced_at: Set(Some(Utc::now().into())),

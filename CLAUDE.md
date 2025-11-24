@@ -14,10 +14,15 @@ Beat Collector is a self-hosted music library management system built with the M
 - Cache: Redis for API response caching
 - Task Scheduling: tokio-cron-scheduler for background jobs
 
-## Development Commands
+## Development Environment
+
+This project uses **Nix** for reproducible development environments.
 
 ### Initial Setup
 ```bash
+# Enter the Nix development environment
+nix develop
+
 # Copy environment variables and configure
 cp .env.example .env
 # Edit .env with your Spotify client ID and other settings
@@ -25,6 +30,17 @@ cp .env.example .env
 # Start development environment (starts PostgreSQL/Redis, builds CSS, runs app)
 ./dev.sh
 ```
+
+The Nix flake (`flake.nix`) provides:
+- Rust toolchain (from `rust-toolchain.toml`)
+- `cargo-watch` for auto-reload
+- `sea-orm-cli` version 1.1.19 for entity generation
+- `cargo-tarpaulin` for test coverage reports
+- Node.js for TailwindCSS
+- Docker and docker-compose for services
+- All system dependencies (pkg-config, openssl)
+
+### Development Commands
 
 ### Building
 ```bash
@@ -42,18 +58,59 @@ npm run css:watch  # Watch mode for development
 ### Database Migrations
 ```bash
 # Run pending migrations (automatically done on app startup)
-cargo run -- migrate up
+cargo run -p migration up
 
 # Create a new migration
 cd migration
-cargo run -- generate MIGRATION_NAME
+sea-orm-cli migrate generate MIGRATION_NAME
 
 # Migration files are in migration/src/
-# Migrations run automatically on application startup via main.rs:55
+# Migrations run automatically on application startup via main.rs:56
 ```
 
-### Running Tests
+**Important:** Migrations are database-agnostic and work with SQLite, PostgreSQL, and MySQL. Use standard types and avoid database-specific features.
+
+### Entity Generation
+
+Entities in `src/db/entities/` are generated from the database schema using SeaORM CLI.
+
 ```bash
+# Regenerate all entities from current schema
+./generate-entities.sh
+```
+
+This script:
+1. Creates a temporary SQLite database
+2. Runs all migrations to create the schema
+3. Uses `sea-orm-cli` to generate entity files
+4. Cleans up the temporary database
+
+**Entity Structure:**
+- Entities use pluralized table names (`albums`, `artists`, `jobs`, etc.)
+- Type aliases are provided in `src/db/entities/mod.rs` for convenience
+- Enums (status types) are defined separately in `src/db/enums.rs`
+- All entities use auto-incrementing integer primary keys
+- Timestamps use `DateTimeUtc` for consistency
+
+**When to regenerate entities:**
+- After adding or modifying migrations
+- When database schema changes
+- To ensure entity definitions match the schema
+
+The entity generation workflow is database-agnostic, allowing testing with SQLite and deployment with PostgreSQL.
+
+### Testing
+
+**Test Infrastructure:**
+- Test utilities in `src/test_utils.rs` provide isolated databases and Redis for parallel testing
+- Each test uses in-memory SQLite database (no shared state)
+- Redis isolation via unique database numbers per test
+- Test dependencies: tokio-test, wiremock, fake, pretty_assertions
+- Coverage tracking with cargo-tarpaulin
+
+**Running Tests:**
+```bash
+# Run all tests (parallel by default)
 cargo test
 
 # Run specific test
@@ -61,7 +118,58 @@ cargo test test_name
 
 # Run with output
 cargo test -- --nocapture
+
+# Run with specific thread count
+cargo test -- --test-threads=16
 ```
+
+**Test Coverage:**
+```bash
+# Generate coverage report (HTML in coverage/ directory)
+cargo tarpaulin --out Html --output-dir coverage --skip-clean
+```
+
+**Test Organization:**
+- **Unit tests**: Inline with modules using `#[cfg(test)]`
+- **Integration tests**: In `tests/` directory
+- **Test factories**: Use helpers from `src/test_utils.rs`
+
+**Writing Tests:**
+Always use test utilities for isolation:
+```rust
+use crate::test_utils::*;
+
+#[tokio::test]
+async fn test_my_feature() {
+    let state = setup_test_app_state().await;
+    // Test with isolated DB and Redis
+}
+```
+
+**Important Test Patterns:**
+- All entities MUST set both `created_at` and `updated_at` when creating
+- Use `setup_test_db()` for database isolation (never share databases)
+- Use `setup_test_redis()` for Redis isolation (unique DB number per test)
+- Test both success and error cases
+- Mock external APIs with wiremock
+
+**Test Coverage Agent:**
+After implementing a feature, invoke the test-coverage agent to ensure comprehensive coverage:
+```bash
+# In Claude Code, invoke:
+@test-coverage
+```
+This agent will:
+1. Analyze current test coverage
+2. Identify critical and medium priority gaps
+3. **Automatically implement** missing critical/medium tests
+4. Re-run coverage to verify improvement
+5. List nice-to-have tests for future work
+
+**Coverage Targets:**
+- Critical paths (handlers, database ops, jobs): 90%+
+- Business logic (services, tasks): 85%+
+- Overall target: 70%+ minimum
 
 ### Development Workflow
 ```bash
@@ -144,13 +252,23 @@ Jobs are spawned as background tasks (see `src/main.rs:72-74`).
 
 ### Database Pattern
 
-**Entities** are defined in `src/db/entities/`:
-- `artist.rs`, `album.rs`, `track.rs` - Core music metadata
+**Entities** are generated in `src/db/entities/`:
+- `artists.rs`, `albums.rs`, `tracks.rs` - Core music metadata
 - `user_settings.rs` - User configuration (Spotify tokens, Lidarr settings)
-- `job.rs` - Background job tracking
-- `lidarr_download.rs` - Download status tracking
+- `jobs.rs` - Background job tracking
+- `lidarr_downloads.rs` - Download status tracking
+- `mod.rs` - Type aliases for backward compatibility
+- `prelude.rs` - Entity re-exports
 
-**Repositories** (future pattern) go in `src/db/repositories/`:
+**Enums** are defined in `src/db/enums.rs`:
+- `OwnershipStatus` - Album ownership (NotOwned, Owned, Downloading)
+- `MatchStatus` - MusicBrainz match status (Pending, Matched, ManualReview, NoMatch)
+- `JobType` - Background job types
+- `JobStatus` - Job execution status
+- `DownloadStatus` - Lidarr download status
+- `AcquisitionSource` - How the album was acquired
+
+**Repositories** go in `src/db/repositories/`:
 - Create repository modules for complex queries
 - Keep entity models clean and focused on schema definition
 
@@ -206,8 +324,10 @@ Config is loaded in `src/config.rs` via `dotenvy` and accessed through `AppState
 ### Adding a New Feature
 
 1. **Define database schema** (if needed):
-   - Create migration in `migration/src/`
-   - Define entity in `src/db/entities/`
+   - Create migration in `migration/src/` (use `sea-orm-cli migrate generate NAME`)
+   - Keep migrations database-agnostic (use standard column types)
+   - Run `./generate-entities.sh` to regenerate entities from schema
+   - Add any custom enums to `src/db/enums.rs` if needed
 
 2. **Create service layer** (if external API):
    - Add service module in `src/services/`
@@ -264,7 +384,10 @@ redis.set_ex(&cache_key, &result, 86400).await?; // 24 hours
 
 ## Important Notes
 
-- **Migrations run automatically** on app startup (main.rs:55)
+- **Nix environment required** - Run `nix develop` before any cargo commands
+- **Entities are generated** - Use `./generate-entities.sh` to regenerate from schema
+- **Database-agnostic migrations** - Migrations work with SQLite, PostgreSQL, and MySQL
+- **Migrations run automatically** on app startup (main.rs:56)
 - **Job executor starts on app startup** (main.rs:72-75)
 - **TailwindCSS must be built** before running (or use dev.sh)
 - **HTMX interactions** use `hx-get`, `hx-post` attributes in Maud templates

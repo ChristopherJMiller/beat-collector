@@ -13,10 +13,10 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Jobs::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
+                            .auto_increment()
                             .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
                     )
                     .col(
                         ColumnDef::new(Jobs::JobType)
@@ -31,7 +31,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Jobs::EntityId)
-                            .uuid(),
+                            .integer(),
                     )
                     .col(
                         ColumnDef::new(Jobs::Progress)
@@ -63,7 +63,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Jobs::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
+                    )
+                    .col(
+                        ColumnDef::new(Jobs::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
                     )
                     .to_owned(),
             )
@@ -123,4 +127,5 @@ pub enum Jobs {
     StartedAt,
     CompletedAt,
     CreatedAt,
+    UpdatedAt,
 }

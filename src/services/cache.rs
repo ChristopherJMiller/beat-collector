@@ -41,7 +41,7 @@ impl CacheService {
         let json = serde_json::to_string(value)?;
         let ttl = ttl_seconds.unwrap_or(DEFAULT_TTL);
 
-        conn.set_ex(key, json, ttl).await?;
+        conn.set_ex(key, json, ttl as u64).await?;
         Ok(())
     }
 

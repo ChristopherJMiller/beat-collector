@@ -22,6 +22,9 @@ pub fn html_routes() -> Router<AppState> {
         .route("/jobs", get(html::jobs))
         .route("/stats", get(html::stats))
 
+        // OAuth callback (GET with query params from Spotify)
+        .route("/auth/callback", get(auth::callback))
+
         // HTMX partials
         .route("/albums", get(html::albums_grid))
         .route("/albums/:id", get(html::album_detail))
@@ -32,7 +35,6 @@ pub fn api_routes() -> Router<AppState> {
     Router::new()
         // Auth endpoints
         .route("/auth/spotify/authorize", get(auth::authorize))
-        .route("/auth/spotify/callback", post(auth::callback))
 
         // Album endpoints
         .route("/albums", get(albums::list_albums))

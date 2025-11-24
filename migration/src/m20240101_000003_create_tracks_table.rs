@@ -15,14 +15,14 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Tracks::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
+                            .auto_increment()
                             .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
                     )
                     .col(
                         ColumnDef::new(Tracks::AlbumId)
-                            .uuid()
+                            .integer()
                             .not_null(),
                     )
                     .col(
@@ -49,19 +49,17 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Tracks::MusicbrainzId)
-                            .uuid(),
+                            .string_len(100),
                     )
                     .col(
                         ColumnDef::new(Tracks::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .col(
                         ColumnDef::new(Tracks::UpdatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .foreign_key(
                         ForeignKey::create()

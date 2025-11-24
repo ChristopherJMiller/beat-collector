@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 
 use crate::{
-    db::entities::{album, Album},
+    db::entities::albums,
     services::MusicBrainzService,
     state::AppState,
 };
@@ -12,8 +12,8 @@ use crate::{
 /// Download and store cover art for an album
 pub async fn download_cover_art(
     state: &AppState,
-    album_id: uuid::Uuid,
-    mb_release_group_id: uuid::Uuid,
+    album_id: i32,
+    mb_release_group_id: &str,
     covers_dir: &Path,
 ) -> Result<String> {
     // Ensure covers directory exists
@@ -31,10 +31,13 @@ pub async fn download_cover_art(
         mb_release_group_id
     );
 
+    // Parse MusicBrainz ID from string
+    let mb_uuid = uuid::Uuid::parse_str(mb_release_group_id)?;
+
     let cover_data = mb_service
         .fetch_cover_art(
-            mb_release_group_id,
-            crate::services::CoverArtSize::Medium,
+            mb_uuid,
+            crate::services::musicbrainz::CoverArtSize::Medium,
         )
         .await?;
 
@@ -58,12 +61,12 @@ pub async fn download_all_missing_covers(state: AppState) -> Result<()> {
     let covers_dir = PathBuf::from("static/covers");
 
     // Find all albums with MusicBrainz IDs but no local cover art
-    let albums = Album::find()
-        .filter(album::Column::MusicbrainzReleaseGroupId.is_not_null())
+    let albums = albums::Entity::find()
+        .filter(albums::Column::MusicbrainzReleaseGroupId.is_not_null())
         .filter(
-            album::Column::CoverArtUrl
+            albums::Column::CoverArtUrl
                 .not_like("/static/covers/%")
-                .or(album::Column::CoverArtUrl.is_null()),
+                .or(albums::Column::CoverArtUrl.is_null()),
         )
         .all(&state.db)
         .await?;
@@ -71,11 +74,11 @@ pub async fn download_all_missing_covers(state: AppState) -> Result<()> {
     tracing::info!("Found {} albums needing cover art", albums.len());
 
     for album_model in albums {
-        if let Some(mb_id) = album_model.musicbrainz_release_group_id {
+        if let Some(ref mb_id) = album_model.musicbrainz_release_group_id {
             match download_cover_art(&state, album_model.id, mb_id, &covers_dir).await {
                 Ok(cover_url) => {
                     // Update database with local cover art URL
-                    let mut active: album::ActiveModel = album_model.into();
+                    let mut active: albums::ActiveModel = album_model.into();
                     active.cover_art_url = Set(Some(cover_url));
                     active.updated_at = Set(chrono::Utc::now().into());
                     active.update(&state.db).await?;

@@ -147,7 +147,7 @@ pub fn album_detail_modal(
                     div class="mt-6 pt-6 border-t flex flex-wrap gap-3" {
                         button
                             class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md"
-                            hx-post={(format!("/albums/{}/search-lidarr", album.id))}
+                            hx-post={(format!("/api/albums/{}/search-lidarr", album.id))}
                             hx-target="#notification-area"
                             hx-swap="innerHTML" {
                             "Search in Lidarr"
@@ -155,7 +155,7 @@ pub fn album_detail_modal(
 
                         button
                             class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-md"
-                            hx-post={(format!("/albums/{}/match", album.id))}
+                            hx-post={(format!("/api/albums/{}/match", album.id))}
                             hx-target="#notification-area"
                             hx-swap="innerHTML" {
                             "Re-match MusicBrainz"
@@ -174,7 +174,7 @@ pub fn album_detail_modal(
 
                         button
                             class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-md"
-                            hx-patch={(format!("/albums/{}", album.id))}
+                            hx-patch={(format!("/api/albums/{}", album.id))}
                             hx-vals=r#"{"ownership_status": "owned", "acquisition_source": "manual"}"#
                             hx-target="#notification-area"
                             hx-swap="innerHTML" {
@@ -187,8 +187,8 @@ pub fn album_detail_modal(
     }
 }
 
-fn status_badge_large(status: &crate::db::entities::album::OwnershipStatus) -> Markup {
-    use crate::db::entities::album::OwnershipStatus;
+fn status_badge_large(status: &crate::db::OwnershipStatus) -> Markup {
+    use crate::db::OwnershipStatus;
 
     let (text, color) = match status {
         OwnershipStatus::Owned => ("Owned", "bg-green-100 text-green-800"),
@@ -227,7 +227,7 @@ pub fn settings_page(
                         }
                         button
                             class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md"
-                            hx-post="/jobs/spotify-sync"
+                            hx-post="/api/jobs/spotify-sync"
                             hx-target="#notification-area" {
                             "Sync Library Now"
                         }

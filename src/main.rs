@@ -15,15 +15,8 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod config;
-mod db;
-mod error;
-mod handlers;
-mod jobs;
-mod services;
-mod state;
-mod tasks;
-mod templates;
+// Re-export library for binary
+use beat_collector::{config, db, error, handlers, jobs, services, state, tasks, templates};
 
 use config::Config;
 use state::AppState;

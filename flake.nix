@@ -46,9 +46,13 @@
           meta = with pkgs.lib; {
             description = "Command line utility for SeaORM";
             homepage = "https://www.sea-ql.org/SeaORM/";
-            license = with licenses; [ mit asl20 ];
+            license = with licenses; [
+              mit
+              asl20
+            ];
           };
         };
+
       in
       {
         devShells.default = pkgs.mkShell {
@@ -59,6 +63,9 @@
 
             # SeaORM CLI for entity generation
             sea-orm-cli
+
+            # Cargo Tarpaulin for test coverage
+            pkgs.cargo-tarpaulin
 
             # Node.js for TailwindCSS
             pkgs.nodejs

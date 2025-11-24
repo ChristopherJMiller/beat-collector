@@ -5,10 +5,12 @@ use axum::{
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use uuid::Uuid;
 
 use crate::{
-    db::entities::{album, lidarr_download, Album, LidarrDownload},
+    db::{
+        entities::{albums, artists, lidarr_downloads},
+        enums::{AcquisitionSource, OwnershipStatus},
+    },
     error::Result,
     services::LidarrWebhook,
     state::AppState,
@@ -69,16 +71,15 @@ async fn handle_grab(
         .await?
         {
             // Update album status to Downloading
-            let mut active: album::ActiveModel = album.clone().into();
-            active.ownership_status = Set(album::OwnershipStatus::Downloading);
+            let mut active: albums::ActiveModel = album.clone().into();
+            active.ownership_status = Set(OwnershipStatus::Downloading.as_str().to_string());
             active.updated_at = Set(Utc::now().into());
             active.update(&state.db).await?;
 
             // Create lidarr_download record
-            let download_record = lidarr_download::ActiveModel {
-                id: Set(Uuid::new_v4()),
+            let download_record = lidarr_downloads::ActiveModel {
                 album_id: Set(album.id),
-                lidarr_album_id: Set(lidarr_album.id),
+                lidarr_album_id: Set(Some(lidarr_album.id)),
                 download_id: Set(Some(download_id.clone())),
                 status: Set("grabbing".to_string()),
                 created_at: Set(Utc::now().into()),
@@ -123,21 +124,21 @@ async fn handle_download(
                 });
 
             // Update album to Owned status
-            let mut active: album::ActiveModel = album.clone().into();
-            active.ownership_status = Set(album::OwnershipStatus::Owned);
-            active.acquisition_source = Set(Some(album::AcquisitionSource::Lidarr));
+            let mut active: albums::ActiveModel = album.clone().into();
+            active.ownership_status = Set(OwnershipStatus::Owned.as_str().to_string());
+            active.acquisition_source = Set(Some(AcquisitionSource::Lidarr.as_str().to_string()));
             active.local_path = Set(local_path);
             active.updated_at = Set(Utc::now().into());
             active.update(&state.db).await?;
 
             // Update lidarr_download record
-            if let Some(download) = LidarrDownload::find()
-                .filter(lidarr_download::Column::AlbumId.eq(album.id))
-                .filter(lidarr_download::Column::LidarrAlbumId.eq(lidarr_album.id))
+            if let Some(download) = lidarr_downloads::Entity::find()
+                .filter(lidarr_downloads::Column::AlbumId.eq(album.id))
+                .filter(lidarr_downloads::Column::LidarrAlbumId.eq(lidarr_album.id))
                 .one(&state.db)
                 .await?
             {
-                let mut active_download: lidarr_download::ActiveModel = download.into();
+                let mut active_download: lidarr_downloads::ActiveModel = download.into();
                 active_download.status = Set("completed".to_string());
                 active_download.completed_at = Set(Some(Utc::now().into()));
                 active_download.update(&state.db).await?;
@@ -168,9 +169,9 @@ async fn handle_album_download(
     )
     .await?
     {
-        let mut active: album::ActiveModel = db_album.clone().into();
-        active.ownership_status = Set(album::OwnershipStatus::Owned);
-        active.acquisition_source = Set(Some(album::AcquisitionSource::Lidarr));
+        let mut active: albums::ActiveModel = db_album.clone().into();
+        active.ownership_status = Set(OwnershipStatus::Owned.as_str().to_string());
+        active.acquisition_source = Set(Some(AcquisitionSource::Lidarr.as_str().to_string()));
         active.updated_at = Set(Utc::now().into());
         active.update(&state.db).await?;
 
@@ -200,19 +201,19 @@ async fn handle_download_failure(
         .await?
         {
             // Update album back to NotOwned
-            let mut active: album::ActiveModel = album.clone().into();
-            active.ownership_status = Set(album::OwnershipStatus::NotOwned);
+            let mut active: albums::ActiveModel = album.clone().into();
+            active.ownership_status = Set(OwnershipStatus::NotOwned.as_str().to_string());
             active.updated_at = Set(Utc::now().into());
             active.update(&state.db).await?;
 
             // Update lidarr_download record
-            if let Some(download) = LidarrDownload::find()
-                .filter(lidarr_download::Column::AlbumId.eq(album.id))
-                .filter(lidarr_download::Column::LidarrAlbumId.eq(lidarr_album.id))
+            if let Some(download) = lidarr_downloads::Entity::find()
+                .filter(lidarr_downloads::Column::AlbumId.eq(album.id))
+                .filter(lidarr_downloads::Column::LidarrAlbumId.eq(lidarr_album.id))
                 .one(&state.db)
                 .await?
             {
-                let mut active_download: lidarr_download::ActiveModel = download.into();
+                let mut active_download: lidarr_downloads::ActiveModel = download.into();
                 active_download.status = Set("failed".to_string());
                 active_download.error_message = Set(Some(error_message.clone()));
                 active_download.update(&state.db).await?;
@@ -234,10 +235,10 @@ async fn find_album_by_title_and_artist(
     state: &AppState,
     title: &str,
     artist_name: &str,
-) -> Result<Option<album::Model>> {
+) -> Result<Option<albums::Model>> {
     // Find all artists and albums, then fuzzy match
     // This is not the most efficient but works for moderate sizes
-    let artists = crate::db::entities::Artist::find()
+    let artists = artists::Entity::find()
         .all(&state.db)
         .await?;
 
@@ -247,8 +248,8 @@ async fn find_album_by_title_and_artist(
     });
 
     if let Some(artist) = matching_artist {
-        let albums = Album::find()
-            .filter(album::Column::ArtistId.eq(artist.id))
+        let albums = albums::Entity::find()
+            .filter(albums::Column::ArtistId.eq(artist.id))
             .all(&state.db)
             .await?;
 

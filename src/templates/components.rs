@@ -1,10 +1,9 @@
 use maud::{html, Markup};
-use uuid::Uuid;
 
-use crate::db::entities::album::{OwnershipStatus, MatchStatus};
+use crate::db::enums::OwnershipStatus;
 
 pub struct AlbumCardData {
-    pub id: Uuid,
+    pub id: i32,
     pub title: String,
     pub artist_name: String,
     pub cover_art_url: Option<String>,
@@ -170,7 +169,7 @@ pub fn filter_bar() -> Markup {
                 div class="flex items-end" {
                     button
                         class="w-full bg-primary hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md transition"
-                        hx-post="/jobs/spotify-sync"
+                        hx-post="/api/jobs/spotify-sync"
                         hx-target="#notification-area"
                         hx-swap="innerHTML" {
                         "Sync Spotify"

@@ -2,12 +2,13 @@ use axum::{
     extract::{Path, Query, State},
     response::Html,
 };
-use maud::Markup;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
-use uuid::Uuid;
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::{
-    db::entities::{album, artist, Album, Artist, UserSettings},
+    db::{
+        entities::{albums, artists, user_settings},
+        enums::OwnershipStatus,
+    },
     error::Result,
     state::AppState,
     templates::{
@@ -31,26 +32,26 @@ pub async fn albums_grid(
     let page = query.page.max(1);
     let page_size = query.page_size.min(200).max(1);
 
-    let mut select = Album::find();
+    let mut select = albums::Entity::find();
 
     // Apply filters
     if let Some(status) = &query.ownership_status {
-        select = select.filter(album::Column::OwnershipStatus.eq(status));
+        select = select.filter(albums::Column::OwnershipStatus.eq(status));
     }
 
     if let Some(match_status) = &query.match_status {
-        select = select.filter(album::Column::MatchStatus.eq(match_status));
+        select = select.filter(albums::Column::MatchStatus.eq(match_status));
     }
 
     if let Some(artist_id) = query.artist_id {
-        select = select.filter(album::Column::ArtistId.eq(artist_id));
+        select = select.filter(albums::Column::ArtistId.eq(artist_id));
     }
 
     if let Some(search) = &query.search {
         select = select.filter(
-            album::Column::Title
+            albums::Column::Title
                 .contains(search)
-                .or(album::Column::Title.like(&format!("%{}%", search))),
+                .or(albums::Column::Title.like(&format!("%{}%", search))),
         );
     }
 
@@ -60,10 +61,10 @@ pub async fn albums_grid(
 
     // Get paginated results
     let albums = select
-        .order_by_desc(album::Column::CreatedAt)
+        .order_by_desc(albums::Column::CreatedAt)
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .find_also_related(Artist)
+        .find_also_related(artists::Entity)
         .all(&state.db)
         .await?;
 
@@ -76,7 +77,7 @@ pub async fn albums_grid(
                 artist_name: a.name,
                 cover_art_url: album.cover_art_url,
                 release_date: album.release_date.map(|d| d.to_string()),
-                ownership_status: album.ownership_status,
+                ownership_status: OwnershipStatus::from_str(&album.ownership_status).unwrap_or(OwnershipStatus::NotOwned),
                 match_score: album.match_score,
             })
         })
@@ -89,10 +90,10 @@ pub async fn albums_grid(
 /// Album detail modal (for HTMX)
 pub async fn album_detail(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i32>,
 ) -> Result<Html<String>> {
-    let album_with_artist = Album::find_by_id(id)
-        .find_also_related(Artist)
+    let album_with_artist = albums::Entity::find_by_id(id)
+        .find_also_related(artists::Entity)
         .one(&state.db)
         .await?;
 
@@ -103,14 +104,15 @@ pub async fn album_detail(
             artist_name: artist.name.clone(),
             cover_art_url: album.cover_art_url.clone(),
             release_date: album.release_date.map(|d| d.to_string()),
-            ownership_status: album.ownership_status,
+            ownership_status: OwnershipStatus::from_str(&album.ownership_status).unwrap_or(OwnershipStatus::NotOwned),
             match_score: album.match_score,
         };
 
+        let genres: Option<Vec<String>> = album.genres.and_then(|g| serde_json::from_str(&g).ok());
         let markup = album_detail_modal(
             &album_data,
             &artist.name,
-            &album.genres,
+            &genres,
             album.total_tracks,
         );
         Ok(Html(markup.into_string()))
@@ -121,7 +123,7 @@ pub async fn album_detail(
 
 /// Settings page
 pub async fn settings(State(state): State<AppState>) -> Html<String> {
-    let settings_result = UserSettings::find().one(&state.db).await;
+    let settings_result = user_settings::Entity::find().one(&state.db).await;
 
     let (lidarr_url, music_folder, spotify_connected) = match settings_result {
         Ok(Some(settings)) => (

@@ -2,10 +2,9 @@ use axum::{extract::State, Json};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
-    db::entities::{user_settings, UserSettings},
+    db::entities::user_settings,
     error::{AppError, Result},
     services::LidarrService,
     state::AppState,
@@ -13,7 +12,7 @@ use crate::{
 
 #[derive(Serialize)]
 pub struct SettingsResponse {
-    pub id: Uuid,
+    pub id: i32,
     pub lidarr_url: Option<String>,
     pub music_folder_path: Option<String>,
     pub auto_sync_enabled: Option<bool>,
@@ -37,7 +36,7 @@ pub struct TestConnectionResponse {
 }
 
 pub async fn get_settings(State(state): State<AppState>) -> Result<Json<SettingsResponse>> {
-    let settings = UserSettings::find()
+    let settings = user_settings::Entity::find()
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Settings not found".to_string()))?;
@@ -57,7 +56,7 @@ pub async fn update_settings(
     Json(payload): Json<UpdateSettingsRequest>,
 ) -> Result<Json<SettingsResponse>> {
     // Get existing settings or create new
-    let existing = UserSettings::find().one(&state.db).await?;
+    let existing = user_settings::Entity::find().one(&state.db).await?;
 
     let settings = if let Some(existing_settings) = existing {
         let mut active: user_settings::ActiveModel = existing_settings.into();
@@ -86,7 +85,6 @@ pub async fn update_settings(
         active.update(&state.db).await?
     } else {
         let new_settings = user_settings::ActiveModel {
-            id: Set(Uuid::new_v4()),
             lidarr_url: Set(payload.lidarr_url),
             lidarr_api_key: Set(payload.lidarr_api_key),
             music_folder_path: Set(payload.music_folder_path),
@@ -112,7 +110,7 @@ pub async fn update_settings(
 pub async fn test_lidarr_connection(
     State(state): State<AppState>,
 ) -> Result<Json<TestConnectionResponse>> {
-    let settings = UserSettings::find()
+    let settings = user_settings::Entity::find()
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::Configuration("Settings not configured".to_string()))?;

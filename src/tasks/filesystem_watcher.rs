@@ -72,7 +72,7 @@ pub async fn start_watcher(state: AppState, music_path: PathBuf) -> Result<()> {
 /// Initialize the filesystem watcher if music folder is configured
 pub async fn init_watcher_if_configured(state: AppState) -> Result<()> {
     // Check if music folder is configured
-    if let Some(settings) = crate::db::entities::UserSettings::find()
+    if let Some(settings) = crate::db::entities::user_settings::Entity::find()
         .one(&state.db)
         .await?
     {

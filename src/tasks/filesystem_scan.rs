@@ -5,7 +5,10 @@ use std::path::Path;
 use std::fs;
 
 use crate::{
-    db::entities::{album, Album},
+    db::{
+        entities::{albums, artists},
+        enums::{AcquisitionSource, OwnershipStatus},
+    },
     state::AppState,
 };
 
@@ -111,7 +114,7 @@ async fn match_and_update_album(
 ) -> Result<()> {
     // Try to find matching album in database by fuzzy matching artist and title
     // First, try to find artist
-    let artist_matches = crate::db::entities::Artist::find()
+    let artist_matches = artists::Entity::find()
         .all(&state.db)
         .await?;
 
@@ -122,8 +125,8 @@ async fn match_and_update_album(
 
     if let Some(artist) = matching_artist {
         // Find albums by this artist
-        let albums = Album::find()
-            .filter(album::Column::ArtistId.eq(artist.id))
+        let albums = albums::Entity::find()
+            .filter(albums::Column::ArtistId.eq(artist.id))
             .all(&state.db)
             .await?;
 
@@ -136,13 +139,13 @@ async fn match_and_update_album(
 
         if let Some(album_model) = matching_album {
             // Update album ownership
-            let mut active: album::ActiveModel = album_model.clone().into();
-            active.ownership_status = Set(album::OwnershipStatus::Owned);
+            let mut active: albums::ActiveModel = album_model.clone().into();
+            active.ownership_status = Set(OwnershipStatus::Owned.as_str().to_string());
             active.local_path = Set(Some(local_path.to_string()));
 
             // If acquisition source is not set, default to Unknown
             if album_model.acquisition_source.is_none() {
-                active.acquisition_source = Set(Some(album::AcquisitionSource::Unknown));
+                active.acquisition_source = Set(Some(AcquisitionSource::Unknown.as_str().to_string()));
             }
 
             active.updated_at = Set(chrono::Utc::now().into());

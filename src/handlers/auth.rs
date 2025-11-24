@@ -1,11 +1,12 @@
 use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
+    extract::{Query, State},
+    http::HeaderMap,
+    response::{IntoResponse, Redirect},
 };
 use chrono::{Duration, Utc};
-use sea_orm::{ActiveModelTrait, Set};
-use serde::{Deserialize, Serialize};
+use redis::AsyncCommands;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use serde::Deserialize;
 
 use crate::{
     db::entities::user_settings,
@@ -14,26 +15,15 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Serialize)]
-pub struct AuthorizeResponse {
-    pub authorization_url: String,
-}
-
 #[derive(Deserialize)]
-pub struct CallbackRequest {
+pub struct CallbackQuery {
     pub code: String,
-    pub code_verifier: String,
-}
-
-#[derive(Serialize)]
-pub struct CallbackResponse {
-    pub success: bool,
-    pub expires_at: String,
+    pub state: String,
 }
 
 pub async fn authorize(
     State(state): State<AppState>,
-) -> Result<Json<AuthorizeResponse>> {
+) -> Result<impl IntoResponse> {
     let spotify_service = SpotifyService::new(
         state.config.spotify_client_id.clone(),
         state.config.spotify_redirect_uri.clone(),
@@ -41,23 +31,33 @@ pub async fn authorize(
 
     let auth_url = spotify_service.generate_authorization_url()?;
 
-    // Store code_verifier in Redis with short TTL (10 minutes)
-    let cache_key = format!("spotify:verifier:{}", auth_url.code_verifier);
-    state
-        .redis
-        .clone()
-        .set_ex(&cache_key, &auth_url.code_verifier, 600)
-        .await?;
+    // Store code_verifier in Redis with state as key, short TTL (10 minutes)
+    let cache_key = format!("spotify:state:{}", auth_url.state);
+    let mut redis_conn = state.redis.clone();
+    redis_conn.set_ex(&cache_key, &auth_url.code_verifier, 600).await?;
 
-    Ok(Json(AuthorizeResponse {
-        authorization_url: auth_url.url,
-    }))
+    // Return HX-Redirect header to redirect the browser to Spotify's authorization page
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Redirect", auth_url.url.parse().unwrap());
+
+    Ok((headers, ""))
 }
 
 pub async fn callback(
     State(state): State<AppState>,
-    Json(payload): Json<CallbackRequest>,
-) -> Result<Json<CallbackResponse>> {
+    Query(params): Query<CallbackQuery>,
+) -> Result<impl IntoResponse> {
+    // Retrieve code_verifier from Redis using state
+    let cache_key = format!("spotify:state:{}", params.state);
+    let mut redis_conn = state.redis.clone();
+    let code_verifier: String = redis_conn
+        .get(&cache_key)
+        .await
+        .map_err(|_| crate::error::AppError::Authentication("Invalid or expired state".into()))?;
+
+    // Delete the used state
+    let _: () = redis_conn.del(&cache_key).await?;
+
     let spotify_service = SpotifyService::new(
         state.config.spotify_client_id.clone(),
         state.config.spotify_redirect_uri.clone(),
@@ -65,7 +65,7 @@ pub async fn callback(
 
     // Exchange code for tokens
     let token_response = spotify_service
-        .exchange_code(&payload.code, &payload.code_verifier)
+        .exchange_code(&params.code, &code_verifier)
         .await?;
 
     let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
@@ -91,7 +91,6 @@ pub async fn callback(
         active.update(&state.db).await?;
     } else {
         let new_settings = user_settings::ActiveModel {
-            id: Set(uuid::Uuid::new_v4()),
             spotify_access_token: settings.spotify_access_token,
             spotify_refresh_token: settings.spotify_refresh_token,
             spotify_token_expires_at: settings.spotify_token_expires_at,
@@ -102,8 +101,6 @@ pub async fn callback(
         new_settings.insert(&state.db).await?;
     }
 
-    Ok(Json(CallbackResponse {
-        success: true,
-        expires_at: expires_at.to_rfc3339(),
-    }))
+    // Redirect to settings page with success
+    Ok(Redirect::to("/settings"))
 }

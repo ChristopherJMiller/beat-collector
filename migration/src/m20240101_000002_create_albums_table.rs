@@ -15,10 +15,10 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Albums::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
-                            .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
+                            .auto_increment()
+                            .primary_key(),
                     )
                     .col(
                         ColumnDef::new(Albums::Title)
@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Albums::ArtistId)
-                            .uuid()
+                            .integer()
                             .not_null(),
                     )
                     .col(
@@ -37,7 +37,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Albums::MusicbrainzReleaseGroupId)
-                            .uuid(),
+                            .string_len(100),
                     )
                     .col(
                         ColumnDef::new(Albums::ReleaseDate)
@@ -53,7 +53,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Albums::Genres)
-                            .array(ColumnType::Text),
+                            .text(),
                     )
                     .col(
                         ColumnDef::new(Albums::OwnershipStatus)
@@ -81,14 +81,12 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Albums::CreatedAt)
                             .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT NOW()"),
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(Albums::UpdatedAt)
                             .timestamp_with_time_zone()
-                            .not_null()
-                            .extra("DEFAULT NOW()"),
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(Albums::LastSyncedAt)

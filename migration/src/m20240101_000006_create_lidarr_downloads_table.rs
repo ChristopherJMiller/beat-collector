@@ -15,14 +15,14 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(LidarrDownloads::Id)
-                            .uuid()
+                            .integer()
                             .not_null()
+                            .auto_increment()
                             .primary_key()
-                            .extra("DEFAULT gen_random_uuid()"),
                     )
                     .col(
                         ColumnDef::new(LidarrDownloads::AlbumId)
-                            .uuid()
+                            .integer()
                             .not_null(),
                     )
                     .col(
@@ -48,16 +48,22 @@ impl MigrationTrait for Migration {
                             .timestamp_with_time_zone(),
                     )
                     .col(
+                        ColumnDef::new(LidarrDownloads::CompletedAt)
+                            .timestamp_with_time_zone(),
+                    )
+                    .col(
+                        ColumnDef::new(LidarrDownloads::ErrorMessage)
+                            .text(),
+                    )
+                    .col(
                         ColumnDef::new(LidarrDownloads::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .col(
                         ColumnDef::new(LidarrDownloads::UpdatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
-                            .extra("DEFAULT NOW()"),
                     )
                     .foreign_key(
                         ForeignKey::create()
@@ -110,6 +116,8 @@ pub enum LidarrDownloads {
     Status,
     QualityProfile,
     EstimatedCompletionAt,
+    CompletedAt,
+    ErrorMessage,
     CreatedAt,
     UpdatedAt,
 }

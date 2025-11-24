@@ -18,7 +18,7 @@ license.workspace = true
 [dependencies]
 # Web framework
 axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.5", features = ["fs", "cors", "trace", "compression-gzip"] }
 tokio = { version = "1", features = ["full"] }
 
@@ -77,6 +77,13 @@ musicbrainz_rs = { version = "0.5", features = ["async"] }
 
 # Config
 config = "0.14"
+
+[dev-dependencies]
+# Testing utilities
+tokio-test = "0.4"
+wiremock = "0.6"
+fake = "2.9"
+pretty_assertions = "1.4"
 
 [features]
 default = []

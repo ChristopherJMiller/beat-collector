@@ -4,21 +4,20 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "user_settings")]
+#[sea_orm(table_name = "jobs")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub job_type: String,
+    pub status: String,
+    pub entity_id: Option<i32>,
+    pub progress: Option<i32>,
+    pub total_items: Option<i32>,
+    pub processed_items: Option<i32>,
     #[sea_orm(column_type = "Text", nullable)]
-    pub spotify_access_token: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub spotify_refresh_token: Option<String>,
-    pub spotify_token_expires_at: Option<DateTimeWithTimeZone>,
-    pub lidarr_url: Option<String>,
-    pub lidarr_api_key: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub music_folder_path: Option<String>,
-    pub auto_sync_enabled: Option<bool>,
-    pub sync_interval_hours: Option<i32>,
+    pub error_message: Option<String>,
+    pub started_at: Option<DateTimeWithTimeZone>,
+    pub completed_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

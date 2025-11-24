@@ -1,7 +1,6 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, ColumnTrait, Set};
-use uuid::Uuid;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, ColumnTrait, Set};
 use crate::error::Result;
-use crate::db::entities::{album, artist, track, user_settings, job};
+use crate::db::entities::{albums, artists, tracks, user_settings, jobs};
 
 pub struct AlbumRepository {
     db: DatabaseConnection,
@@ -12,22 +11,22 @@ impl AlbumRepository {
         Self { db }
     }
 
-    pub async fn find_by_id(&self, id: Uuid) -> Result<Option<album::Model>> {
-        Ok(album::Entity::find_by_id(id).one(&self.db).await?)
+    pub async fn find_by_id(&self, id: i32) -> Result<Option<albums::Model>> {
+        Ok(albums::Entity::find_by_id(id).one(&self.db).await?)
     }
 
-    pub async fn find_by_spotify_id(&self, spotify_id: &str) -> Result<Option<album::Model>> {
-        Ok(album::Entity::find()
-            .filter(album::Column::SpotifyId.eq(spotify_id))
+    pub async fn find_by_spotify_id(&self, spotify_id: &str) -> Result<Option<albums::Model>> {
+        Ok(albums::Entity::find()
+            .filter(albums::Column::SpotifyId.eq(spotify_id))
             .one(&self.db)
             .await?)
     }
 
-    pub async fn create(&self, album: album::ActiveModel) -> Result<album::Model> {
+    pub async fn create(&self, album: albums::ActiveModel) -> Result<albums::Model> {
         Ok(album.insert(&self.db).await?)
     }
 
-    pub async fn update(&self, album: album::ActiveModel) -> Result<album::Model> {
+    pub async fn update(&self, album: albums::ActiveModel) -> Result<albums::Model> {
         Ok(album.update(&self.db).await?)
     }
 }
@@ -41,18 +40,18 @@ impl ArtistRepository {
         Self { db }
     }
 
-    pub async fn find_by_id(&self, id: Uuid) -> Result<Option<artist::Model>> {
-        Ok(artist::Entity::find_by_id(id).one(&self.db).await?)
+    pub async fn find_by_id(&self, id: i32) -> Result<Option<artists::Model>> {
+        Ok(artists::Entity::find_by_id(id).one(&self.db).await?)
     }
 
-    pub async fn find_by_spotify_id(&self, spotify_id: &str) -> Result<Option<artist::Model>> {
-        Ok(artist::Entity::find()
-            .filter(artist::Column::SpotifyId.eq(spotify_id))
+    pub async fn find_by_spotify_id(&self, spotify_id: &str) -> Result<Option<artists::Model>> {
+        Ok(artists::Entity::find()
+            .filter(artists::Column::SpotifyId.eq(spotify_id))
             .one(&self.db)
             .await?)
     }
 
-    pub async fn create(&self, artist: artist::ActiveModel) -> Result<artist::Model> {
+    pub async fn create(&self, artist: artists::ActiveModel) -> Result<artists::Model> {
         Ok(artist.insert(&self.db).await?)
     }
 }
@@ -115,21 +114,21 @@ impl JobRepository {
         Self { db }
     }
 
-    pub async fn create(&self, job: job::ActiveModel) -> Result<job::Model> {
+    pub async fn create(&self, job: jobs::ActiveModel) -> Result<jobs::Model> {
         Ok(job.insert(&self.db).await?)
     }
 
-    pub async fn update(&self, job: job::ActiveModel) -> Result<job::Model> {
+    pub async fn update(&self, job: jobs::ActiveModel) -> Result<jobs::Model> {
         Ok(job.update(&self.db).await?)
     }
 
-    pub async fn find_by_id(&self, id: Uuid) -> Result<Option<job::Model>> {
-        Ok(job::Entity::find_by_id(id).one(&self.db).await?)
+    pub async fn find_by_id(&self, id: i32) -> Result<Option<jobs::Model>> {
+        Ok(jobs::Entity::find_by_id(id).one(&self.db).await?)
     }
 
-    pub async fn find_recent(&self, limit: u64) -> Result<Vec<job::Model>> {
-        Ok(job::Entity::find()
-            .order_by_desc(job::Column::CreatedAt)
+    pub async fn find_recent(&self, limit: u64) -> Result<Vec<jobs::Model>> {
+        Ok(jobs::Entity::find()
+            .order_by_desc(jobs::Column::CreatedAt)
             .limit(limit)
             .all(&self.db)
             .await?)

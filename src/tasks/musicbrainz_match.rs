@@ -2,7 +2,10 @@ use anyhow::Result;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::{
-    db::entities::{album, Album},
+    db::{
+        entities::{albums, artists},
+        enums::MatchStatus,
+    },
     services::MusicBrainzService,
     state::AppState,
 };
@@ -17,9 +20,9 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
     ));
 
     // Get all albums with pending match status
-    let pending_albums = Album::find()
-        .filter(album::Column::MatchStatus.eq("pending"))
-        .find_also_related(crate::db::entities::Artist)
+    let pending_albums = albums::Entity::find()
+        .filter(albums::Column::MatchStatus.eq("pending"))
+        .find_also_related(artists::Entity)
         .all(&state.db)
         .await?;
 
@@ -39,16 +42,16 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
                         let album_id = album_model.id;
                         let mb_id = best_match.id;
 
-                        let mut active: album::ActiveModel = album_model.into();
-                        active.musicbrainz_release_group_id = Set(Some(mb_id));
+                        let mut active: albums::ActiveModel = album_model.into();
+                        active.musicbrainz_release_group_id = Set(Some(mb_id.to_string()));
                         active.match_score = Set(Some(best_match.score));
-                        active.match_status = Set(if best_match.score >= 90 {
-                            album::MatchStatus::Matched
+                        active.match_status = Set(Some(if best_match.score >= 90 {
+                            MatchStatus::Matched.as_str().to_string()
                         } else if best_match.score >= 80 {
-                            album::MatchStatus::ManualReview
+                            MatchStatus::ManualReview.as_str().to_string()
                         } else {
-                            album::MatchStatus::NoMatch
-                        });
+                            MatchStatus::NoMatch.as_str().to_string()
+                        }));
                         active.updated_at = Set(chrono::Utc::now().into());
 
                         active.update(&state.db).await?;
@@ -60,15 +63,15 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
 
                         // Download cover art after successful match
                         let covers_dir = std::path::PathBuf::from("static/covers");
-                        match super::cover_art::download_cover_art(&state, album_id, mb_id, &covers_dir).await {
+                        match super::cover_art::download_cover_art(&state, album_id, &mb_id.to_string(), &covers_dir).await {
                             Ok(cover_url) => {
                                 // Update album with local cover art URL
-                                let album_for_cover = Album::find_by_id(album_id)
+                                let album_for_cover = albums::Entity::find_by_id(album_id)
                                     .one(&state.db)
                                     .await?;
 
                                 if let Some(alb) = album_for_cover {
-                                    let mut active_cover: album::ActiveModel = alb.into();
+                                    let mut active_cover: albums::ActiveModel = alb.into();
                                     active_cover.cover_art_url = Set(Some(cover_url));
                                     active_cover.updated_at = Set(chrono::Utc::now().into());
                                     active_cover.update(&state.db).await?;
@@ -82,8 +85,8 @@ pub async fn run_musicbrainz_match(state: AppState) -> Result<()> {
                         }
                     } else {
                         // No match found
-                        let mut active: album::ActiveModel = album_model.into();
-                        active.match_status = Set(album::MatchStatus::NoMatch);
+                        let mut active: albums::ActiveModel = album_model.into();
+                        active.match_status = Set(Some(MatchStatus::NoMatch.as_str().to_string()));
                         active.updated_at = Set(chrono::Utc::now().into());
                         active.update(&state.db).await?;
                         tracing::debug!("No match found");
