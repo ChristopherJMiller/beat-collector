@@ -212,3 +212,33 @@ impl From<AcquisitionSource> for String {
         source.as_str().to_string()
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum AlbumSource {
+    #[default]
+    SavedAlbum,
+    PlaylistImport,
+}
+
+impl AlbumSource {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::SavedAlbum => "saved_album",
+            Self::PlaylistImport => "playlist_import",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "saved_album" => Some(Self::SavedAlbum),
+            "playlist_import" => Some(Self::PlaylistImport),
+            _ => None,
+        }
+    }
+}
+
+impl From<AlbumSource> for String {
+    fn from(source: AlbumSource) -> String {
+        source.as_str().to_string()
+    }
+}

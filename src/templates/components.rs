@@ -272,3 +272,160 @@ pub fn notification(message: &str, notification_type: &str) -> Markup {
         }
     }
 }
+
+// Playlist-related types and components
+
+pub struct PlaylistCardData {
+    pub id: i32,
+    pub name: String,
+    pub owner_name: Option<String>,
+    pub track_count: i32,
+    pub owned_count: i32,
+    pub cover_image_url: Option<String>,
+    pub is_enabled: bool,
+    pub ownership_percentage: f64,
+    pub is_synthetic: bool,
+}
+
+pub struct PlaylistTrackData {
+    pub position: i32,
+    pub track_name: String,
+    pub artist_name: String,
+    pub album_id: i32,
+    pub album_name: String,
+    pub duration_ms: Option<i32>,
+    pub ownership_status: OwnershipStatus,
+}
+
+pub fn playlist_card(playlist: &PlaylistCardData) -> Markup {
+    // Use a heart placeholder for Liked Songs (synthetic), regular placeholder otherwise
+    let default_cover = if playlist.is_synthetic {
+        "https://via.placeholder.com/300x300/1db954/ffffff?text=%E2%9D%A4" // Green with heart emoji
+    } else {
+        "https://via.placeholder.com/300x300/1a1a1a/ffffff?text=Playlist"
+    };
+
+    let cover_url = playlist
+        .cover_image_url
+        .as_deref()
+        .unwrap_or(default_cover);
+
+    let status_class = if playlist.is_enabled { "enabled" } else { "disabled" };
+
+    html! {
+        div
+            class=(format!("playlist-card {} bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow", status_class))
+            hx-get={(format!("/playlists/{}", playlist.id))}
+            hx-target="#playlist-detail-modal"
+            hx-swap="innerHTML" {
+
+            // Playlist cover
+            div class="relative aspect-square" {
+                img
+                    src=(cover_url)
+                    alt={(format!("{} playlist", playlist.name))}
+                    class="w-full h-full object-cover"
+                    loading="lazy";
+
+                // Enabled/disabled badge
+                @if !playlist.is_enabled {
+                    div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center" {
+                        span class="text-white text-sm font-semibold" { "Disabled" }
+                    }
+                }
+
+                // Ownership percentage badge
+                div class="absolute top-2 right-2" {
+                    span class=(format!("px-2 py-1 text-xs font-semibold text-white rounded-full {}",
+                        if playlist.ownership_percentage >= 80.0 { "bg-green-500" }
+                        else if playlist.ownership_percentage >= 50.0 { "bg-yellow-500" }
+                        else { "bg-gray-500" }
+                    )) {
+                        (format!("{:.0}%", playlist.ownership_percentage))
+                    }
+                }
+            }
+
+            // Playlist info
+            div class="p-4" {
+                h3 class="font-semibold text-gray-900 truncate" title=(playlist.name) {
+                    (playlist.name)
+                }
+
+                @if let Some(owner) = &playlist.owner_name {
+                    p class="text-sm text-gray-600 truncate" {
+                        "by " (owner)
+                    }
+                }
+
+                div class="mt-2 flex justify-between items-center" {
+                    p class="text-xs text-gray-500" {
+                        (playlist.track_count) " tracks"
+                    }
+                    p class="text-xs text-green-600" {
+                        (playlist.owned_count) " owned"
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn playlist_track_row(track: &PlaylistTrackData) -> Markup {
+    let status_color = match track.ownership_status {
+        OwnershipStatus::Owned => "text-green-600",
+        OwnershipStatus::NotOwned => "text-gray-400",
+        OwnershipStatus::Downloading => "text-blue-600",
+    };
+
+    let duration_str = track.duration_ms.map(format_duration).unwrap_or_default();
+
+    html! {
+        tr class="hover:bg-gray-50" {
+            // Position
+            td class="px-4 py-3 text-sm text-gray-500 text-right w-12" {
+                (track.position + 1)
+            }
+
+            // Track name
+            td class="px-4 py-3" {
+                div class="text-sm font-medium text-gray-900" { (track.track_name) }
+                div class="text-sm text-gray-500" { (track.artist_name) }
+            }
+
+            // Album (clickable)
+            td class="px-4 py-3 text-sm text-gray-600" {
+                span
+                    class="cursor-pointer hover:text-primary hover:underline"
+                    hx-get={(format!("/albums/{}", track.album_id))}
+                    hx-target="#album-detail-modal"
+                    hx-swap="innerHTML" {
+                    (track.album_name)
+                }
+            }
+
+            // Duration
+            td class="px-4 py-3 text-sm text-gray-500 text-right" {
+                (duration_str)
+            }
+
+            // Ownership status
+            td class="px-4 py-3 text-right" {
+                span class=(format!("text-lg {}", status_color)) {
+                    @match track.ownership_status {
+                        OwnershipStatus::Owned => "●",
+                        OwnershipStatus::NotOwned => "○",
+                        OwnershipStatus::Downloading => "◐",
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn format_duration(ms: i32) -> String {
+    let total_seconds = ms / 1000;
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    format!("{}:{:02}", minutes, seconds)
+}

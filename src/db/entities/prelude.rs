@@ -4,5 +4,7 @@ pub use super::albums::Entity as Albums;
 pub use super::artists::Entity as Artists;
 pub use super::jobs::Entity as Jobs;
 pub use super::lidarr_downloads::Entity as LidarrDownloads;
+pub use super::playlist_tracks::Entity as PlaylistTracks;
+pub use super::playlists::Entity as Playlists;
 pub use super::tracks::Entity as Tracks;
 pub use super::user_settings::Entity as UserSettings;

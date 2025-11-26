@@ -28,6 +28,7 @@ pub struct Model {
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     pub last_synced_at: Option<DateTimeWithTimeZone>,
+    pub source: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

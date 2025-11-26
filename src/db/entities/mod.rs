@@ -6,5 +6,7 @@ pub mod albums;
 pub mod artists;
 pub mod jobs;
 pub mod lidarr_downloads;
+pub mod playlist_tracks;
+pub mod playlists;
 pub mod tracks;
 pub mod user_settings;

@@ -2,6 +2,7 @@ pub mod health;
 pub mod albums;
 pub mod auth;
 pub mod jobs;
+pub mod playlists;
 pub mod settings;
 pub mod html;
 pub mod lidarr;
@@ -21,6 +22,7 @@ pub fn html_routes() -> Router<AppState> {
         .route("/settings", get(html::settings))
         .route("/jobs", get(html::jobs))
         .route("/stats", get(html::stats))
+        .route("/playlists", get(html::playlists))
 
         // OAuth callback (GET with query params from Spotify)
         .route("/auth/callback", get(auth::callback))
@@ -28,6 +30,8 @@ pub fn html_routes() -> Router<AppState> {
         // HTMX partials
         .route("/albums", get(html::albums_grid))
         .route("/albums/:id", get(html::album_detail))
+        .route("/playlists-grid", get(html::playlists_grid))
+        .route("/playlists/:id", get(html::playlist_detail))
 }
 
 /// JSON API routes (for programmatic access)
@@ -42,6 +46,12 @@ pub fn api_routes() -> Router<AppState> {
         .route("/albums/:id", patch(albums::update_album))
         .route("/albums/:id/match", post(albums::trigger_match))
         .route("/albums/:id/search-lidarr", post(albums::search_lidarr))
+
+        // Playlist endpoints
+        .route("/playlists", get(playlists::list_playlists))
+        .route("/playlists/:id", get(playlists::get_playlist))
+        .route("/playlists/:id/tracks", get(playlists::get_playlist_tracks))
+        .route("/playlists/:id/toggle", post(playlists::toggle_playlist_enabled))
 
         // Job endpoints
         .route("/jobs", get(jobs::list_jobs))

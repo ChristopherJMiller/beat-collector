@@ -4,39 +4,32 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "tracks")]
+#[sea_orm(table_name = "playlists")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub album_id: i32,
-    pub title: String,
-    pub track_number: Option<i32>,
-    pub disc_number: Option<i32>,
-    pub duration_ms: Option<i32>,
-    pub spotify_id: Option<String>,
-    pub musicbrainz_id: Option<String>,
+    pub name: String,
+    #[sea_orm(unique)]
+    pub spotify_id: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub description: Option<String>,
+    pub owner_name: Option<String>,
+    pub is_collaborative: bool,
+    pub total_tracks: Option<i32>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub cover_image_url: Option<String>,
+    pub snapshot_id: Option<String>,
+    pub is_enabled: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+    pub last_synced_at: Option<DateTimeWithTimeZone>,
+    pub is_synthetic: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::albums::Entity",
-        from = "Column::AlbumId",
-        to = "super::albums::Column::Id",
-        on_update = "NoAction",
-        on_delete = "Cascade"
-    )]
-    Albums,
     #[sea_orm(has_many = "super::playlist_tracks::Entity")]
     PlaylistTracks,
-}
-
-impl Related<super::albums::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Albums.def()
-    }
 }
 
 impl Related<super::playlist_tracks::Entity> for Entity {
