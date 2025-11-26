@@ -1,8 +1,9 @@
 use maud::{html, Markup};
 
 use super::components::{
-    album_card, filter_bar, pagination, playlist_card, playlist_track_row,
-    AlbumCardData, PlaylistCardData, PlaylistTrackData,
+    album_card, artist_card, artist_filter_bar, artist_pagination, filter_bar, pagination,
+    playlist_card, playlist_track_row, AlbumCardData, ArtistCardData, PlaylistCardData,
+    PlaylistTrackData,
 };
 use super::layout::base_layout;
 
@@ -209,7 +210,6 @@ fn status_badge_large(status: &crate::db::OwnershipStatus) -> Markup {
 pub fn settings_page(
     lidarr_url: Option<String>,
     music_folder: Option<String>,
-    spotify_connected: bool,
 ) -> Markup {
     base_layout(
         "Settings",
@@ -223,27 +223,14 @@ pub fn settings_page(
                 div class="bg-white rounded-lg shadow-sm p-6 mb-6" {
                     h2 class="text-xl font-semibold mb-4" { "Spotify Connection" }
 
-                    @if spotify_connected {
-                        div class="flex items-center space-x-2 text-green-600 mb-4" {
-                            span { "✓" }
-                            span { "Connected to Spotify" }
-                        }
-                        button
-                            class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md"
-                            hx-post="/api/jobs/spotify-sync"
-                            hx-target="#notification-area" {
-                            "Sync Library Now"
-                        }
-                    } @else {
-                        p class="text-gray-600 mb-4" {
-                            "Connect your Spotify account to import your music library."
-                        }
-                        button
-                            class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md"
-                            hx-get="/api/auth/spotify/authorize"
-                            hx-target="this"
-                            hx-swap="outerHTML" {
-                            "Connect Spotify"
+                    p class="text-gray-600 mb-4" {
+                        "Connect your Spotify account to import your music library."
+                    }
+
+                    // Dynamic Spotify button - checks auth status and shows appropriate action
+                    div hx-get="/api/auth/spotify/button" hx-trigger="load" {
+                        button class="px-4 py-2 bg-gray-300 text-gray-600 font-semibold rounded-md" disabled {
+                            "Checking connection..."
                         }
                     }
                 }
@@ -375,12 +362,12 @@ pub fn playlists_page() -> Markup {
             div class="flex justify-between items-center mb-8" {
                 h1 class="text-3xl font-bold text-gray-900" { "Your Playlists" }
 
-                button
-                    class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md"
-                    hx-post="/api/jobs/spotify-sync"
-                    hx-target="#notification-area"
-                    hx-swap="innerHTML" {
-                    "Sync from Spotify"
+                // Dynamic Spotify button - loads via HTMX to check auth status
+                div hx-get="/api/auth/spotify/button" hx-trigger="load" {
+                    // Loading placeholder
+                    button class="px-4 py-2 bg-gray-300 text-gray-600 font-semibold rounded-md" disabled {
+                        "Loading..."
+                    }
                 }
             }
 
@@ -430,20 +417,30 @@ pub fn playlist_grid_partial(
 pub fn playlist_detail_partial(
     playlist: &PlaylistCardData,
     tracks: Vec<PlaylistTrackData>,
+    page: u64,
+    total_pages: u64,
 ) -> Markup {
     html! {
         // Modal backdrop
-        div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        div class="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto p-4 sm:p-8"
              onclick="this.remove()" {
 
             // Modal content
-            div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-auto flex flex-col"
+                 style="max-height: calc(100vh - 2rem);"
                  onclick="event.stopPropagation()" {
 
                 // Header
                 div class="flex justify-between items-center p-6 border-b flex-shrink-0" {
                     div class="flex items-center space-x-4" {
-                        @if let Some(cover_url) = &playlist.cover_image_url {
+                        @if playlist.is_synthetic && playlist.cover_image_url.is_none() {
+                            // Gradient for Liked Songs
+                            div
+                                class="w-16 h-16 rounded-md flex items-center justify-center"
+                                style="background: linear-gradient(135deg, #450af5, #c4efd9);" {
+                                span class="text-white text-2xl" { "♥" }
+                            }
+                        } @else if let Some(cover_url) = &playlist.cover_image_url {
                             img
                                 src=(cover_url)
                                 alt="Playlist cover"
@@ -464,7 +461,7 @@ pub fn playlist_detail_partial(
                                 if playlist.is_enabled { "bg-green-100 text-green-800" }
                                 else { "bg-gray-100 text-gray-600" }
                             ))
-                            hx-post={(format!("/api/playlists/{}/toggle", playlist.id))}
+                            hx-post={(format!("/playlists/{}/toggle", playlist.id))}
                             hx-target="#playlist-detail-modal"
                             hx-swap="innerHTML" {
                             @if playlist.is_enabled { "Enabled" } @else { "Disabled" }
@@ -479,36 +476,32 @@ pub fn playlist_detail_partial(
                 }
 
                 // Stats bar
-                div class="px-6 py-3 bg-gray-50 border-b flex items-center space-x-6 flex-shrink-0" {
-                    div class="text-sm" {
-                        span class="text-gray-500" { "Tracks: " }
-                        span class="font-semibold" { (playlist.track_count) }
-                    }
-                    div class="text-sm" {
-                        span class="text-gray-500" { "Owned: " }
-                        span class="font-semibold text-green-600" { (playlist.owned_count) }
-                    }
-                    div class="text-sm" {
-                        span class="text-gray-500" { "Ownership: " }
-                        span class=(format!("font-semibold {}",
-                            if playlist.ownership_percentage >= 80.0 { "text-green-600" }
-                            else if playlist.ownership_percentage >= 50.0 { "text-yellow-600" }
-                            else { "text-gray-600" }
-                        )) {
-                            (format!("{:.1}%", playlist.ownership_percentage))
-                        }
+                div class="px-6 py-3 bg-gray-50 border-b flex-shrink-0 text-sm" {
+                    span class="text-gray-500" { "Tracks: " }
+                    span class="font-semibold" { (playlist.track_count) }
+                    span class="text-gray-300 mx-3" { "|" }
+                    span class="text-gray-500" { "Owned: " }
+                    span class="font-semibold text-green-600" { (playlist.owned_count) }
+                    span class="text-gray-300 mx-3" { "|" }
+                    span class="text-gray-500" { "Ownership: " }
+                    span class=(format!("font-semibold {}",
+                        if playlist.ownership_percentage >= 80.0 { "text-green-600" }
+                        else if playlist.ownership_percentage >= 50.0 { "text-yellow-600" }
+                        else { "text-gray-600" }
+                    )) {
+                        (format!("{:.1}%", playlist.ownership_percentage))
                     }
                 }
 
                 // Track list
-                div class="overflow-y-auto flex-grow" {
+                div class="overflow-y-auto flex-grow min-h-0" {
                     @if tracks.is_empty() {
                         div class="p-8 text-center text-gray-500" {
                             "No tracks synced yet. Enable the playlist and run a Spotify sync."
                         }
                     } @else {
                         table class="w-full" {
-                            thead class="sticky top-0 bg-white border-b" {
+                            thead class="sticky top-0 bg-white border-b z-10" {
                                 tr {
                                     th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-12" { "#" }
                                     th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" { "Track" }
@@ -517,10 +510,48 @@ pub fn playlist_detail_partial(
                                     th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-16" { "Owned" }
                                 }
                             }
-                            tbody class="divide-y divide-gray-200" {
-                                @for track in tracks {
-                                    (playlist_track_row(&track))
+                            tbody id="playlist-tracks-body" class="divide-y divide-gray-200" {
+                                @for track in &tracks {
+                                    (playlist_track_row(track))
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Pagination footer
+                @if total_pages > 1 {
+                    div class="px-6 py-4 border-t bg-gray-50 flex-shrink-0" {
+                        div class="flex justify-between items-center" {
+                            // Previous button
+                            @if page > 1 {
+                                button
+                                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 text-sm font-medium"
+                                    hx-get={(format!("/playlists/{}?page={}", playlist.id, page - 1))}
+                                    hx-target="#playlist-detail-modal"
+                                    hx-swap="innerHTML" {
+                                    "← Previous"
+                                }
+                            } @else {
+                                div class="px-4 py-2" {}
+                            }
+
+                            // Page indicator
+                            span class="text-sm text-gray-600" {
+                                "Page " (page) " of " (total_pages)
+                            }
+
+                            // Next button
+                            @if page < total_pages {
+                                button
+                                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-100 text-sm font-medium"
+                                    hx-get={(format!("/playlists/{}?page={}", playlist.id, page + 1))}
+                                    hx-target="#playlist-detail-modal"
+                                    hx-swap="innerHTML" {
+                                    "Next →"
+                                }
+                            } @else {
+                                div class="px-4 py-2" {}
                             }
                         }
                     }
@@ -569,4 +600,146 @@ fn playlist_pagination(page: u64, total_pages: u64, base_url: &str) -> Markup {
             }
         }
     }
+}
+
+// Artist pages
+
+pub fn artists_page() -> Markup {
+    base_layout(
+        "Artists",
+        html! {
+            // Notification area for HTMX responses
+            div id="notification-area" class="mb-4" {}
+
+            // Header
+            div class="mb-8" {
+                h1 class="text-3xl font-bold text-gray-900" { "Artists" }
+                p class="text-gray-600 mt-2" { "Browse your library by artist" }
+            }
+
+            // Filter bar
+            (artist_filter_bar())
+
+            // Artist grid
+            div id="artist-grid" hx-get="/artists-grid" hx-trigger="load" {
+                div class="flex justify-center items-center py-12" {
+                    div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" {}
+                    span class="ml-3 text-gray-600" { "Loading artists..." }
+                }
+            }
+
+            // Album detail modal (for viewing albums from artist detail)
+            div id="album-detail-modal" {}
+        },
+    )
+}
+
+pub fn artist_grid_partial(
+    artists: Vec<ArtistCardData>,
+    page: u64,
+    total_pages: u64,
+) -> Markup {
+    html! {
+        @if artists.is_empty() {
+            div class="text-center py-12" {
+                p class="text-gray-600 text-lg" { "No artists found." }
+                p class="text-gray-500 mt-2" {
+                    "Try syncing your Spotify library or adjusting your search."
+                }
+            }
+        } @else {
+            div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" {
+                @for artist in artists {
+                    (artist_card(&artist))
+                }
+            }
+
+            // Pagination
+            @if total_pages > 1 {
+                (artist_pagination(page, total_pages, "/artists-grid"))
+            }
+        }
+    }
+}
+
+pub fn artist_detail_page(
+    artist: &ArtistCardData,
+    albums: Vec<AlbumCardData>,
+) -> Markup {
+    let progress_width = artist.ownership_percentage.min(100.0).max(0.0);
+    let progress_color = if artist.ownership_percentage >= 80.0 {
+        "bg-green-500"
+    } else if artist.ownership_percentage >= 50.0 {
+        "bg-yellow-500"
+    } else {
+        "bg-gray-400"
+    };
+
+    base_layout(
+        &artist.name,
+        html! {
+            // Notification area
+            div id="notification-area" class="mb-4" {}
+
+            // Back link
+            div class="mb-6" {
+                a href="/artists" class="text-primary hover:underline flex items-center" {
+                    span class="mr-2" { "←" }
+                    "Back to Artists"
+                }
+            }
+
+            // Artist header
+            div class="bg-white rounded-lg shadow-sm p-6 mb-8" {
+                h1 class="text-3xl font-bold text-gray-900 mb-4" { (artist.name) }
+
+                // Stats row
+                div class="flex flex-wrap items-center gap-6 mb-4" {
+                    div class="text-gray-600" {
+                        span class="text-2xl font-semibold text-gray-900" { (artist.album_count) }
+                        " album" @if artist.album_count != 1 { "s" }
+                    }
+                    div class="text-gray-600" {
+                        span class="text-2xl font-semibold text-green-600" { (artist.owned_count) }
+                        " owned"
+                    }
+                    div class=(format!("text-2xl font-semibold {}",
+                        if artist.ownership_percentage >= 80.0 { "text-green-600" }
+                        else if artist.ownership_percentage >= 50.0 { "text-yellow-600" }
+                        else { "text-gray-500" }
+                    )) {
+                        (format!("{:.0}%", artist.ownership_percentage)) " complete"
+                    }
+                }
+
+                // Progress bar
+                div class="w-full max-w-md bg-gray-200 rounded-full h-3" {
+                    div
+                        class={(format!("h-3 rounded-full transition-all {}", progress_color))}
+                        style={(format!("width: {}%", progress_width))} {}
+                }
+            }
+
+            // Albums section
+            div class="mb-4" {
+                h2 class="text-xl font-semibold text-gray-900" { "Albums" }
+            }
+
+            // Album grid
+            @if albums.is_empty() {
+                div class="text-center py-12 bg-white rounded-lg shadow-sm" {
+                    p class="text-gray-600" { "No albums found for this artist." }
+                }
+            } @else {
+                div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" {
+                    @for album in albums {
+                        (album_card(&album))
+                    }
+                }
+            }
+
+            // Album detail modal
+            div id="album-detail-modal" {}
+        },
+    )
 }

@@ -27,6 +27,10 @@ pub struct ListAlbumsQuery {
     pub page: u64,
     #[serde(default = "default_page_size")]
     pub page_size: u64,
+    #[serde(default = "default_sort_by")]
+    pub sort_by: String,
+    #[serde(default = "default_sort_order")]
+    pub sort_order: String,
 }
 
 fn default_page() -> u64 {
@@ -35,6 +39,14 @@ fn default_page() -> u64 {
 
 fn default_page_size() -> u64 {
     50
+}
+
+fn default_sort_by() -> String {
+    "created_at".to_string()
+}
+
+fn default_sort_order() -> String {
+    "desc".to_string()
 }
 
 #[derive(Serialize)]
@@ -198,6 +210,7 @@ pub async fn update_album(
         .ok_or_else(|| AppError::NotFound("Album not found".to_string()))?;
 
     let mut active: albums::ActiveModel = album.into();
+    let ownership_changed = payload.ownership_status.is_some();
 
     if let Some(status) = payload.ownership_status {
         // Parse the ownership status
@@ -227,6 +240,13 @@ pub async fn update_album(
 
     active.updated_at = Set(chrono::Utc::now().into());
     let updated = active.update(&state.db).await?;
+
+    // Update playlist owned_count if ownership changed
+    if ownership_changed {
+        if let Err(e) = crate::services::playlist_stats::update_playlists_for_album(&state.db, id).await {
+            tracing::warn!("Failed to update playlist stats after album ownership change: {}", e);
+        }
+    }
 
     // Fetch with artist for response
     get_album(State(state), Path(id)).await

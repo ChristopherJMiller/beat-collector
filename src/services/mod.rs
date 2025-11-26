@@ -2,6 +2,7 @@ pub mod spotify;
 pub mod musicbrainz;
 pub mod lidarr;
 pub mod cache;
+pub mod playlist_stats;
 
 pub use spotify::{
     SpotifyService, SpotifyAlbum, SpotifyArtist, SpotifyImage,

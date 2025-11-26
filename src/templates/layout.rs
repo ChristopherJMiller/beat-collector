@@ -59,6 +59,9 @@ fn nav_bar() -> Markup {
                         a href="/" class="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium" {
                             "Library"
                         }
+                        a href="/artists" class="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium" {
+                            "Artists"
+                        }
                         a href="/playlists" class="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium" {
                             "Playlists"
                         }

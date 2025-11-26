@@ -24,6 +24,7 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
     pub last_synced_at: Option<DateTimeWithTimeZone>,
     pub is_synthetic: bool,
+    pub owned_count: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -10,6 +10,7 @@ mod m20240101_000007_create_playlists_table;
 mod m20240101_000008_create_playlist_tracks_table;
 mod m20240101_000009_add_album_source_column;
 mod m20240101_000010_add_playlist_is_synthetic;
+mod m20240101_000011_add_playlist_owned_count;
 
 pub struct Migrator;
 
@@ -27,6 +28,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000008_create_playlist_tracks_table::Migration),
             Box::new(m20240101_000009_add_album_source_column::Migration),
             Box::new(m20240101_000010_add_playlist_is_synthetic::Migration),
+            Box::new(m20240101_000011_add_playlist_owned_count::Migration),
         ]
     }
 }

@@ -9,6 +9,7 @@ use crate::{
         enums::{JobStatus, JobType},
     },
     jobs::queue::JobMessage,
+    services::playlist_stats,
     state::AppState,
     tasks::{filesystem_scan, musicbrainz_match, spotify_sync},
 };
@@ -99,6 +100,14 @@ impl JobExecutor {
             JobType::CoverArtFetch => {
                 // TODO: Implement cover art fetch job
                 Err(anyhow::anyhow!("Cover art fetch not yet implemented"))
+            }
+
+            JobType::PlaylistStatsBackfill => {
+                playlist_stats::recalculate_all_playlist_stats(&state.db)
+                    .await
+                    .map(|count| {
+                        tracing::info!("Recalculated stats for {} playlists", count);
+                    })
             }
         };
 

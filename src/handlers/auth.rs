@@ -1,12 +1,14 @@
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
-    response::{IntoResponse, Redirect},
+    response::{Html, IntoResponse, Redirect},
+    Json,
 };
 use chrono::{Duration, Utc};
+use maud::html;
 use redis::AsyncCommands;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     db::entities::user_settings,
@@ -14,6 +16,12 @@ use crate::{
     services::SpotifyService,
     state::AppState,
 };
+
+#[derive(Serialize)]
+pub struct SpotifyStatus {
+    pub connected: bool,
+    pub needs_reauth: bool,
+}
 
 #[derive(Deserialize)]
 pub struct CallbackQuery {
@@ -103,4 +111,150 @@ pub async fn callback(
 
     // Redirect to settings page with success
     Ok(Redirect::to("/settings"))
+}
+
+/// Check Spotify connection status and attempt token refresh if needed
+pub async fn spotify_status(
+    State(state): State<AppState>,
+) -> Result<Json<SpotifyStatus>> {
+    let settings = user_settings::Entity::find()
+        .one(&state.db)
+        .await?;
+
+    let Some(settings) = settings else {
+        return Ok(Json(SpotifyStatus {
+            connected: false,
+            needs_reauth: true,
+        }));
+    };
+
+    // No token at all
+    let Some(access_token) = &settings.spotify_access_token else {
+        return Ok(Json(SpotifyStatus {
+            connected: false,
+            needs_reauth: true,
+        }));
+    };
+
+    // Check if token is expired
+    let is_expired = settings
+        .spotify_token_expires_at
+        .map(|exp| Utc::now() + Duration::minutes(5) >= exp.to_utc())
+        .unwrap_or(true);
+
+    if !is_expired {
+        return Ok(Json(SpotifyStatus {
+            connected: true,
+            needs_reauth: false,
+        }));
+    }
+
+    // Try to refresh the token
+    let Some(refresh_token) = &settings.spotify_refresh_token else {
+        return Ok(Json(SpotifyStatus {
+            connected: false,
+            needs_reauth: true,
+        }));
+    };
+
+    let spotify_service = SpotifyService::new(
+        state.config.spotify_client_id.clone(),
+        state.config.spotify_redirect_uri.clone(),
+    );
+
+    match spotify_service.refresh_token(refresh_token).await {
+        Ok(token_response) => {
+            // Update tokens in database
+            let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
+            let mut active: user_settings::ActiveModel = settings.into();
+            active.spotify_access_token = Set(Some(token_response.access_token));
+            if let Some(new_refresh) = token_response.refresh_token {
+                active.spotify_refresh_token = Set(Some(new_refresh));
+            }
+            active.spotify_token_expires_at = Set(Some(expires_at.into()));
+            active.updated_at = Set(Utc::now().into());
+            active.update(&state.db).await?;
+
+            Ok(Json(SpotifyStatus {
+                connected: true,
+                needs_reauth: false,
+            }))
+        }
+        Err(_) => {
+            // Refresh failed, need re-auth
+            Ok(Json(SpotifyStatus {
+                connected: false,
+                needs_reauth: true,
+            }))
+        }
+    }
+}
+
+/// HTML partial for Spotify button - checks status and renders appropriate button
+pub async fn spotify_button(
+    State(state): State<AppState>,
+) -> Result<Html<String>> {
+    let settings = user_settings::Entity::find()
+        .one(&state.db)
+        .await?;
+
+    let mut needs_auth = true;
+
+    if let Some(settings) = settings {
+        if settings.spotify_access_token.is_some() {
+            // Check if expired
+            let is_expired = settings
+                .spotify_token_expires_at
+                .map(|exp| Utc::now() + Duration::minutes(5) >= exp.to_utc())
+                .unwrap_or(true);
+
+            if !is_expired {
+                needs_auth = false;
+            } else if let Some(refresh_token) = &settings.spotify_refresh_token {
+                // Try refresh
+                let spotify_service = SpotifyService::new(
+                    state.config.spotify_client_id.clone(),
+                    state.config.spotify_redirect_uri.clone(),
+                );
+
+                if let Ok(token_response) = spotify_service.refresh_token(refresh_token).await {
+                    let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
+                    let mut active: user_settings::ActiveModel = settings.into();
+                    active.spotify_access_token = Set(Some(token_response.access_token));
+                    if let Some(new_refresh) = token_response.refresh_token {
+                        active.spotify_refresh_token = Set(Some(new_refresh));
+                    }
+                    active.spotify_token_expires_at = Set(Some(expires_at.into()));
+                    active.updated_at = Set(Utc::now().into());
+                    let _ = active.update(&state.db).await;
+                    needs_auth = false;
+                }
+            }
+        }
+    }
+
+    let markup = if needs_auth {
+        html! {
+            button
+                class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-md flex items-center space-x-2"
+                hx-get="/api/auth/spotify/authorize"
+                hx-swap="none" {
+                span { "🔗" }
+                span { "Login with Spotify" }
+            }
+        }
+    } else {
+        html! {
+            button
+                class="px-4 py-2 bg-primary hover:bg-green-600 text-white font-semibold rounded-md flex items-center space-x-2"
+                hx-post="/api/jobs/spotify-sync"
+                hx-target="#notification-area"
+                hx-swap="innerHTML" {
+                span { "🔄" }
+                span { "Sync with Spotify" }
+            }
+        }
+    };
+
+    Ok(Html(markup.into_string()))
 }

@@ -74,6 +74,7 @@ pub enum JobType {
     LidarrSearch,
     CoverArtFetch,
     FilesystemScan,
+    PlaylistStatsBackfill,
 }
 
 impl JobType {
@@ -84,6 +85,7 @@ impl JobType {
             Self::LidarrSearch => "lidarr_search",
             Self::CoverArtFetch => "cover_art_fetch",
             Self::FilesystemScan => "filesystem_scan",
+            Self::PlaylistStatsBackfill => "playlist_stats_backfill",
         }
     }
 
@@ -94,6 +96,7 @@ impl JobType {
             "lidarr_search" => Some(Self::LidarrSearch),
             "cover_art_fetch" => Some(Self::CoverArtFetch),
             "filesystem_scan" => Some(Self::FilesystemScan),
+            "playlist_stats_backfill" => Some(Self::PlaylistStatsBackfill),
             _ => None,
         }
     }

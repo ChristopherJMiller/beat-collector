@@ -1,5 +1,6 @@
 pub mod health;
 pub mod albums;
+pub mod artists;
 pub mod auth;
 pub mod jobs;
 pub mod playlists;
@@ -19,6 +20,8 @@ pub fn html_routes() -> Router<AppState> {
     Router::new()
         // Main pages
         .route("/", get(html::index))
+        .route("/artists", get(html::artists))
+        .route("/artists/:id", get(html::artist_detail))
         .route("/settings", get(html::settings))
         .route("/jobs", get(html::jobs))
         .route("/stats", get(html::stats))
@@ -30,8 +33,11 @@ pub fn html_routes() -> Router<AppState> {
         // HTMX partials
         .route("/albums", get(html::albums_grid))
         .route("/albums/:id", get(html::album_detail))
+        .route("/artists-grid", get(html::artists_grid))
         .route("/playlists-grid", get(html::playlists_grid))
         .route("/playlists/:id", get(html::playlist_detail))
+        .route("/playlists/:id/toggle", post(html::playlist_toggle))
+        .route("/playlists/:id/tracks", get(html::playlist_tracks_partial))
 }
 
 /// JSON API routes (for programmatic access)
@@ -39,6 +45,8 @@ pub fn api_routes() -> Router<AppState> {
     Router::new()
         // Auth endpoints
         .route("/auth/spotify/authorize", get(auth::authorize))
+        .route("/auth/spotify/status", get(auth::spotify_status))
+        .route("/auth/spotify/button", get(auth::spotify_button))
 
         // Album endpoints
         .route("/albums", get(albums::list_albums))
@@ -66,6 +74,10 @@ pub fn api_routes() -> Router<AppState> {
 
         // Lidarr webhook
         .route("/webhooks/lidarr", post(lidarr::webhook))
+
+        // Artist endpoints
+        .route("/artists", get(artists::list_artists))
+        .route("/artists/:id", get(artists::get_artist))
 
         // Statistics
         .route("/stats", get(albums::get_stats))

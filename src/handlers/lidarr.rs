@@ -131,6 +131,11 @@ async fn handle_download(
             active.updated_at = Set(Utc::now().into());
             active.update(&state.db).await?;
 
+            // Update playlist owned_count
+            if let Err(e) = crate::services::playlist_stats::update_playlists_for_album(&state.db, album.id).await {
+                tracing::warn!("Failed to update playlist stats after download: {}", e);
+            }
+
             // Update lidarr_download record
             if let Some(download) = lidarr_downloads::Entity::find()
                 .filter(lidarr_downloads::Column::AlbumId.eq(album.id))
@@ -175,6 +180,11 @@ async fn handle_album_download(
         active.updated_at = Set(Utc::now().into());
         active.update(&state.db).await?;
 
+        // Update playlist owned_count
+        if let Err(e) = crate::services::playlist_stats::update_playlists_for_album(&state.db, db_album.id).await {
+            tracing::warn!("Failed to update playlist stats after album download: {}", e);
+        }
+
         tracing::info!(
             "Album '{}' by '{}' download completed",
             album.title,
@@ -205,6 +215,11 @@ async fn handle_download_failure(
             active.ownership_status = Set(OwnershipStatus::NotOwned.as_str().to_string());
             active.updated_at = Set(Utc::now().into());
             active.update(&state.db).await?;
+
+            // Update playlist owned_count
+            if let Err(e) = crate::services::playlist_stats::update_playlists_for_album(&state.db, album.id).await {
+                tracing::warn!("Failed to update playlist stats after download failure: {}", e);
+            }
 
             // Update lidarr_download record
             if let Some(download) = lidarr_downloads::Entity::find()
